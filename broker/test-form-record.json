@@ -1,0 +1,8 @@
+{
+  "Name": "Test Drive Form",
+  "Form_Id__c": "test-drive-form",
+  "Active__c": true,
+  "Fields_JSON__c": "[{\"name\":\"name\",\"label\":\"Your Name\",\"type\":\"text\",\"required\":true},{\"name\":\"email\",\"label\":\"Email Address\",\"type\":\"email\",\"required\":true},{\"name\":\"phone\",\"label\":\"Phone Number\",\"type\":\"tel\",\"required\":true},{\"name\":\"preferredDate\",\"label\":\"Preferred Test Drive Date\",\"type\":\"date\",\"required\":true},{\"name\":\"vehicleInterest\",\"label\":\"Vehicle of Interest\",\"type\":\"select\",\"required\":true,\"options\":[{\"value\":\"tesla-model-3\",\"label\":\"Tesla Model 3\"},{\"value\":\"tesla-model-y\",\"label\":\"Tesla Model Y\"}]},{\"name\":\"message\",\"label\":\"Additional Comments\",\"type\":\"textarea\",\"required\":false}]",
+  "Mapping_Rules__c": "{\"salesforceObject\":\"Lead\",\"fieldMappings\":{\"name\":\"FirstName\",\"email\":\"Email\",\"phone\":\"Phone\",\"preferredDate\":\"Test_Drive_Date__c\",\"vehicleInterest\":\"Vehicle_Interest__c\",\"message\":\"Description\"}}",
+  "Agent_Config__c": "{\"enabled\":true,\"triggers\":[\"focus\",\"change\",\"submit\"],\"ui\":{\"showProgress\":true,\"autoSave\":true}}"
+}

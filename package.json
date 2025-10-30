@@ -1,0 +1,31 @@
+{
+  "name": "context-broker-monorepo",
+  "version": "1.0.0",
+  "description": "Forms-Aware Agent - Monorepo for Frontend, Broker, and Salesforce components",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix frontend && npm install --prefix broker",
+    "dev:frontend": "npm start --prefix frontend",
+    "dev:broker": "npm run dev --prefix broker",
+    "build:frontend": "npm run build --prefix frontend",
+    "build:broker": "npm run build --prefix broker",
+    "deploy:frontend": "./scripts/deploy-github.sh",
+    "deploy:broker": "./scripts/deploy-heroku.sh",
+    "deploy:sf": "./scripts/deploy-salesforce.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/context-broker.git"
+  },
+  "keywords": [
+    "salesforce",
+    "forms",
+    "react",
+    "typescript",
+    "heroku"
+  ],
+  "author": "",
+  "license": "ISC"
+}
+
+

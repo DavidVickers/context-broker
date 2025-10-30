@@ -1,0 +1,8 @@
+.sfdx/
+.sf/
+.localdevserver/
+.tooling/
+*.log
+.DS_Store
+
+

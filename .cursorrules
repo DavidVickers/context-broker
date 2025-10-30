@@ -1,0 +1,322 @@
+# Context Broker - Forms-Aware Agent Project Rules
+
+**⚠️ CRITICAL: See CONTEXT.md for essential architecture patterns. Update this file when patterns change.**
+
+## Project Overview
+This is a Forms-Aware Agent project built as a monorepo with three main components:
+1. **Frontend** - React/TypeScript app deployed to GitHub Pages
+2. **Broker** - Node.js/Express/TypeScript API layer deployed to Heroku
+3. **Salesforce** - Apex/Flows backend deployed to Salesforce orgs
+
+## 🎯 CRITICAL ARCHITECTURE RULES (Must Follow)
+
+### Context ID Pattern (REQUIRED)
+- **Format**: `{formId}:{sessionId}` (e.g., `contact-form:550e8400-e29b-41d4-a716-446655440000`)
+- **ALWAYS** include contextId in form submissions
+- **ALWAYS** parse contextId server-side: `parseContextId(contextId)` → `{formId, sessionId}`
+- **ALWAYS** validate format before processing (UUID validation for sessionId)
+- **NEVER** trust client-provided contextId without validation
+- **Store** in Salesforce as `Context_ID__c` and `Session_ID__c` fields
+
+### Session Management Rules
+- Session ID: UUID v4, generated client-side on form load
+- Session storage: Frontend (localStorage) + Broker (in-memory → should be Redis in production)
+- Session expiry: 24 hours, auto-cleanup
+- Context preservation: Must maintain formData, agentContext through async operations
+
+### Domain Responsibilities (STRICT)
+- **Frontend**: UI rendering, session management, agent UI integration. NO direct Salesforce calls.
+- **Broker**: API routing, session management, context validation, Salesforce proxying. NO business logic.
+- **Salesforce**: Form definitions, business logic, agent conversations. NO UI rendering.
+
+## Architecture Principles
+
+### Generalization (Critical)
+- The system MUST be form-agnostic - never hardcode form-specific logic
+- Use dynamic form schemas stored in Salesforce Custom Objects
+- Frontend should render forms dynamically based on configuration
+- Broker should map form fields to Salesforce objects using configurable rules
+- Support multiple forms/pages from a single codebase
+
+### Deployment Strategy
+- Single Git repository with selective deployments:
+  - `frontend/` → GitHub Pages (gh-pages branch)
+  - `broker/` → Heroku (Heroku Git remote)
+  - `salesforce/` → Salesforce orgs (via Salesforce CLI)
+- Use deployment scripts in `scripts/` directory
+- Never deploy entire repo - only deploy changed components
+
+### Technology Stack
+- **Frontend**: React 18+ with TypeScript, deployed to GitHub Pages
+- **Broker**: Node.js/Express with TypeScript, jsforce SDK, deployed to Heroku
+- **Salesforce**: Apex classes, Flows, Custom Objects, REST/SOAP APIs
+- **Authentication**: Salesforce OAuth 2.0 for broker ↔ Salesforce communication
+
+## Directory Structure Rules
+
+```
+context-broker/
+├── frontend/          # React app - must be deployable as static site
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── .env files
+├── broker/            # Express API - must have Procfile for Heroku
+│   ├── src/ or root JS files
+│   ├── Procfile       # Required for Heroku
+│   ├── package.json
+│   └── .env.example
+├── salesforce/        # Salesforce project
+│   ├── sfdx-project.json
+│   ├── force-app/main/default/
+│   │   ├── classes/   # Apex classes
+│   │   ├── flows/     # Flow definitions
+│   │   ├── objects/   # Custom Objects
+│   │   └── staticresources/
+│   └── .sfdx/
+├── scripts/           # Deployment scripts
+├── docs/              # Documentation
+└── .github/workflows/ # CI/CD (optional)
+```
+
+## Code Standards
+
+### Frontend
+- Use TypeScript (no JavaScript if avoidable)
+- Follow React functional component patterns with hooks
+- Environment variables must be prefixed with `REACT_APP_`
+- API calls should go to broker layer, not directly to Salesforce
+- Build output must be static (no server-side rendering for GitHub Pages)
+
+### Broker
+- Use TypeScript
+- Express middleware pattern
+- Use `jsforce` for Salesforce integration
+- Environment variables for all secrets (never hardcode)
+- CORS enabled for frontend domain
+- OAuth 2.0 for Salesforce authentication
+- RESTful API design
+- Error handling on all routes
+
+### Salesforce
+- Follow Salesforce best practices
+- Use Flows for declarative logic when possible
+- Use Apex for complex business logic
+- Custom Objects for form metadata:
+  - `Form_Definition__c` - Form schemas
+  - `Form_Submission__c` - Submission tracking
+- REST API endpoints for broker communication
+- Proper error handling and logging
+- **CRITICAL: Always check local metadata first**
+  - **BEFORE** assuming a Salesforce field/object exists, check local metadata files in `salesforce/force-app/main/default/objects/`
+  - **BEFORE** writing code that references a Salesforce field, verify the field name in the local `.object-meta.xml` file
+  - **IF** local metadata doesn't exist for an object/field, **ASK the user to fetch it** before proceeding
+  - Local metadata path: `salesforce/force-app/main/default/objects/{ObjectName}__c/{ObjectName}__c.object-meta.xml`
+  - Example: For `Form_Submission_Relationship__c`, check `salesforce/force-app/main/default/objects/Form_Submission_Relationship__c/Form_Submission_Relationship__c.object-meta.xml`
+- **CRITICAL: Field Visibility and Security Settings**
+  - **AFTER** deploying new custom fields to Salesforce, **ALWAYS ask the user to verify field-level security (FLS)**
+  - Deploying object metadata adds fields BUT does NOT configure visibility/security settings
+  - The integration user (service account) must have **Read** and **Edit** access to all fields used in code
+  - **EASIER TO DO MANUALLY**: After deployment, user should check:
+    - Setup → Object Manager → {ObjectName} → Fields & Relationships → {FieldName} → Field-Level Security
+    - Ensure the integration user's profile has **Read** and **Edit** permissions
+    - Or use Setup → Profiles → {Profile} → Field-Level Security → {Object} → {Field} → Edit permissions
+  - **IF** fields exist in metadata but are not accessible via API, check FLS settings first
+
+## Environment Variables
+
+### Broker (.env)
+- `SALESFORCE_CLIENT_ID` - Connected App Client ID
+- `SALESFORCE_CLIENT_SECRET` - Connected App Client Secret
+- `SALESFORCE_USERNAME` - Service account username
+- `SALESFORCE_SECURITY_TOKEN` - Security token
+- `SALESFORCE_LOGIN_URL` - https://login.salesforce.com or https://test.salesforce.com
+- `PORT` - Server port (default: process.env.PORT for Heroku)
+- `NODE_ENV` - production/development
+
+### Frontend (.env)
+- `REACT_APP_BROKER_API_URL` - Broker API endpoint
+
+## Deployment Workflow
+
+### Before Deploying
+1. Test locally first
+2. Ensure environment variables are set (use .env.example as template)
+3. Check that only relevant directory has changes
+
+### Deployment Commands
+- Frontend: `./scripts/deploy-github.sh`
+- Broker: `./scripts/deploy-heroku.sh`
+- Salesforce: `./scripts/deploy-salesforce.sh [org-alias]`
+
+### Deployment Notes
+- Heroku: Must have Procfile in broker/
+- GitHub Pages: Build must succeed, deploy script handles gh-pages branch
+- Salesforce: Must be authenticated with `sfdx auth:web:login`
+
+## Form Identification & Session Management
+
+### Form ID Strategy (CRITICAL)
+- **Form ID**: Static identifier from `Form_Definition__c.Form_Id__c` (kebab-case, versioned: `contact-form-v1`)
+- **Session ID**: UUID v4 generated client-side on form load
+- **Context ID**: `{formId}:{sessionId}` - REQUIRED in all form/agent requests
+- **Validation**: Server-side validation of contextId format before any processing
+- **Storage**: Frontend (localStorage), Broker (session store), Salesforce (Form_Submission__c)
+
+### Context ID Flow (MUST FOLLOW)
+```
+1. Frontend: Generate Session ID → Create Context ID
+2. Frontend: Send Context ID with all requests
+3. Broker: Parse contextId → Validate session → Process
+4. Broker: Store Context_ID__c + Session_ID__c in Salesforce
+5. Preserve contextId through auth flows, async operations
+```
+
+### Session Management
+- **Lifecycle**: Creation (form load) → Activity → Expiry (24h) → Cleanup
+- **Storage**: localStorage (frontend) + Map/Redis (broker) + Form_Submission__c (Salesforce)
+- **Context**: Includes formData, agentContext, UI state
+- **Preservation**: MUST maintain through OAuth flows, page reloads
+
+## Common Patterns
+
+### Form Schema Structure (JSON)
+```json
+{
+  "formId": "unique-id",
+  "name": "Form Name",
+  "fields": [
+    {
+      "name": "fieldName",
+      "label": "Field Label",
+      "type": "text|email|number|select|checkbox",
+      "required": true,
+      "validation": {...}
+    }
+  ],
+  "mappings": {
+    "salesforceObject": "Contact",
+    "fieldMappings": {
+      "firstName": "FirstName",
+      "email": "Email"
+    }
+  }
+}
+```
+
+### Broker API Endpoints (CRITICAL PATTERNS)
+
+**Forms**
+- `GET /api/forms/:formId` - Get form definition from Salesforce
+- `POST /api/forms/:formId/submit` - **REQUIRES contextId in body**
+
+**Sessions**
+- `POST /api/sessions` - Create session (returns sessionId, contextId)
+- `GET /api/sessions/:sessionId` - Get session data
+- `PUT /api/sessions/:sessionId` - Update session
+- `GET /api/sessions/context/:contextId` - Get by Context ID
+
+**Agent**
+- `POST /api/forms/:formId/agent/query` - **REQUIRES contextId**
+- `POST /api/agent/auth/initiate` - **REQUIRES contextId** (triggers OAuth)
+- `GET /api/auth/callback` - OAuth callback (validates state)
+
+**UI Agent**
+- `POST /api/agent/ui/event` - Frontend → Broker (state snapshots)
+- `POST /api/agent/ui/command` - Broker → Frontend (modal.open, focus, etc.)
+
+### Form Submission Pattern (STANDARD)
+```typescript
+// Frontend
+POST /api/forms/:formId/submit
+{
+  "contextId": "formId:sessionId",  // REQUIRED
+  "formData": { ... }
+}
+
+// Broker Processing (ALWAYS DO THIS)
+1. Parse contextId → { formId, sessionId }
+2. Validate session exists
+3. Validate Form_Definition__c exists
+4. Create Form_Submission__c with:
+   - Context_ID__c: "formId:sessionId"
+   - Session_ID__c: sessionId
+   - Form_Id__c: formId
+```
+
+### Salesforce Integration
+- Use Connected App for OAuth
+- Store OAuth tokens securely (session/temporary storage)
+- Handle token refresh automatically
+- Use REST API (not SOAP) when possible
+- Support both sandbox and production orgs
+
+## Security Critical Rules (NON-NEGOTIABLE)
+
+1. **NEVER** trust client-provided contextId without server-side validation
+2. **ALWAYS** validate contextId format: `{formId}:{uuid}` before processing
+3. **ALWAYS** check session exists on broker before form submission
+4. **NEVER** store tokens in localStorage (encrypt, server-side only)
+5. **ALWAYS** validate state parameter in OAuth callback
+6. **ALWAYS** use environment variables for secrets (never hardcode)
+7. **NEVER** expose Salesforce credentials or raw errors to client
+8. **ALWAYS** parse contextId server-side (broker), not client-side
+
+## Important Reminders
+
+1. **NEVER commit**: .env files, node_modules, .sfdx cache, build artifacts
+2. **ALWAYS**: Use environment variables for secrets
+3. **GENERALIZATION**: Code should work with any form, not just one
+4. **ERROR HANDLING**: Proper error handling with context (contextId, sessionId)
+5. **TESTING**: Test all three components before deployment
+6. **DOCUMENTATION**: Update CONTEXT.md when architecture changes
+7. **CONTEXT PRESERVATION**: Maintain contextId through all async operations
+8. **SALESFORCE METADATA CHECK**: Always reference local object metadata files before assuming fields/objects exist
+   - Check `salesforce/force-app/main/default/objects/{ObjectName}__c/{ObjectName}__c.object-meta.xml` first
+   - If metadata file doesn't exist, ask user to fetch it from Salesforce before proceeding
+   - Never assume a field exists based on code alone - verify in metadata first
+9. **FIELD-LEVEL SECURITY (FLS)**: After deploying new fields, ALWAYS remind user to configure field visibility
+   - Deploying object metadata adds fields but does NOT configure FLS automatically
+   - Integration user must have Read/Edit access to all fields used in broker code
+   - Easier to configure manually: Setup → Object Manager → Field → Field-Level Security → Edit profile permissions
+   - If fields exist but API calls fail with "field not accessible", check FLS settings first
+
+## Troubleshooting
+
+### Heroku Issues
+- Check logs: `heroku logs --tail -a app-name`
+- Verify Procfile exists in broker/
+- Ensure PORT env var is used (Heroku sets it automatically)
+- Check if app is sleeping (free tier limitation)
+
+### GitHub Pages Issues
+- Verify build succeeds: `npm run build` in frontend/
+- Check gh-pages branch exists
+- Verify GitHub Pages is enabled in repo settings
+- Check that REACT_APP_ env vars are set in build
+
+### Salesforce Issues
+- Authenticate: `sfdx auth:web:login -a alias`
+- Check org list: `sfdx force:org:list`
+- Review deployment errors in Salesforce Setup
+- Verify Connected App settings for OAuth
+- **Field-Level Security (FLS)**: If fields exist but API calls fail
+  - Deploying metadata adds fields BUT does NOT configure FLS automatically
+  - **EASIER TO DO MANUALLY**: Configure field visibility after deployment:
+    - Setup → Object Manager → {ObjectName} → Fields & Relationships → {FieldName} → Field-Level Security
+    - Ensure integration user's profile has **Read** and **Edit** permissions
+    - Or: Setup → Profiles → {Profile} → Field-Level Security → {Object} → {Field} → Edit permissions
+
+## File Naming Conventions
+- Components: PascalCase (e.g., `FormRenderer.tsx`)
+- Utilities: camelCase (e.g., `formValidator.ts`)
+- Apex classes: PascalCase (e.g., `FormSubmissionHandler`)
+- Custom Objects: PascalCase with `__c` (e.g., `Form_Definition__c`)
+
+## Git Workflow
+- Main branch: `main`
+- Deploy branches: `gh-pages` (for frontend)
+- Never force push to main
+- Use descriptive commit messages
+- Tag releases when stable
+

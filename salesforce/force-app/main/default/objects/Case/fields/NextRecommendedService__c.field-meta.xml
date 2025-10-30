@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>NextRecommendedService__c</fullName>
+    <description>Recommended next service or maintenance item.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enter the recommended service action (e.g., Oil Change).</inlineHelpText>
+    <label>Next Recommended Service</label>
+    <length>255</length>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

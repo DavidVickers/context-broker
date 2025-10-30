@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+data/oauth-sessions.json
+data/broker-logs.db
+data/broker-logs.db-shm
+data/broker-logs.db-wal
+
+

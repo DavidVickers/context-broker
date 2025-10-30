@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Form Submission</label>
+    <pluralLabel>Form Submissions</pluralLabel>
+    <sharingModel>ControlledByParent</sharingModel>
+    <nameField>
+        <label>Form Submission Name</label>
+        <type>AutoNumber</type>
+        <displayFormat>SUB-{0000}</displayFormat>
+    </nameField>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <enableHistory>true</enableHistory>
+    <fields>
+        <fullName>Form_Definition__c</fullName>
+        <label>Form Definition</label>
+        <referenceTo>Form_Definition__c</referenceTo>
+        <relationshipLabel>Form Submissions</relationshipLabel>
+        <relationshipName>Form_Submissions</relationshipName>
+        <relationshipOrder>0</relationshipOrder>
+        <required>false</required>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>MasterDetail</type>
+    </fields>
+    <fields>
+        <fullName>Form_Id__c</fullName>
+        <label>Form ID</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>Text</type>
+        <length>255</length>
+    </fields>
+    <fields>
+        <fullName>Submission_Data__c</fullName>
+        <label>Submission Data</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>LongTextArea</type>
+        <length>131072</length>
+        <visibleLines>10</visibleLines>
+    </fields>
+    <fields>
+        <fullName>Status__c</fullName>
+        <label>Status</label>
+        <required>false</required>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>Picklist</type>
+        <valueSet>
+            <valueSetDefinition>
+                <sorted>false</sorted>
+                <value>
+                    <fullName>Submitted</fullName>
+                    <default>true</default>
+                    <label>Submitted</label>
+                </value>
+                <value>
+                    <fullName>Processed</fullName>
+                    <label>Processed</label>
+                </value>
+                <value>
+                    <fullName>Error</fullName>
+                    <label>Error</label>
+                </value>
+            </valueSetDefinition>
+        </valueSet>
+    </fields>
+    <fields>
+        <fullName>Submitted_At__c</fullName>
+        <label>Submitted At</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>DateTime</type>
+    </fields>
+    <fields>
+        <fullName>Session_ID__c</fullName>
+        <label>Session ID</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>Text</type>
+        <length>255</length>
+    </fields>
+    <fields>
+        <fullName>Context_ID__c</fullName>
+        <label>Context ID</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>Text</type>
+        <length>255</length>
+        <unique>true</unique>
+        <caseSensitive>true</caseSensitive>
+        <externalId>true</externalId>
+        <required>false</required>
+    </fields>
+    <fields>
+        <fullName>Related_Record_Id__c</fullName>
+        <label>Related Record ID</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>Text</type>
+        <length>18</length>
+        <description>ID of the record created from this form submission (Lead, Case, Contact, Opportunity, Vehicle__c, etc.)</description>
+    </fields>
+    <fields>
+        <fullName>Related_Object_Type__c</fullName>
+        <label>Related Object Type</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>Text</type>
+        <length>50</length>
+        <description>Type of related record (Lead, Case, Contact, Opportunity, Vehicle__c, etc.). Used with Related_Record_Id__c for querying.</description>
+    </fields>
+    <fields>
+        <fullName>Adjunct_Data__c</fullName>
+        <label>Adjunct Data</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>LongTextArea</type>
+        <length>131072</length>
+        <visibleLines>10</visibleLines>
+        <description>Optional metadata, processing notes, agent context, or additional JSON data</description>
+    </fields>
+    <fields>
+        <fullName>Processed_At__c</fullName>
+        <label>Processed At</label>
+        <trackFeedHistory>false</trackFeedHistory>
+        <trackHistory>true</trackHistory>
+        <type>DateTime</type>
+        <description>Timestamp when the form submission was fully processed and related record was created</description>
+    </fields>
+</CustomObject>

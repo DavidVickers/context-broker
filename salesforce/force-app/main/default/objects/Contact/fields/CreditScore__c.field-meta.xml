@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CreditScore__c</fullName>
+    <description>Simulated credit score for financing scenarios.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enter a plausible numeric score (e.g., 580–800).</inlineHelpText>
+    <label>Credit Score</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

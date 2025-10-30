@@ -1,0 +1,198 @@
+# Field and Action Configuration Framework
+# This YAML file defines semantic mappings for UI Agent tracking
+# Can be stored in Salesforce, loaded by broker, or embedded in frontend
+
+version: "1.0"
+site: "fog-city-drive-solutions"
+
+# Field Definitions
+# Maps data-assist-field values to semantic meaning
+fields:
+  # Inventory Filters
+  f:filterMake:
+    label: "Vehicle Make Filter"
+    type: "select"
+    category: "filter"
+    view: "view:inventory"
+    description: "Filter vehicles by manufacturer"
+    
+  f:filterPriceRange:
+    label: "Price Range Filter"
+    type: "select"
+    category: "filter"
+    view: "view:inventory"
+    description: "Filter vehicles by price range"
+    
+  f:filterFuelType:
+    label: "Fuel Type Filter"
+    type: "select"
+    category: "filter"
+    view: "view:inventory"
+    description: "Filter vehicles by fuel type"
+
+  # Vehicle Actions
+  f:testDrive:
+    label: "Schedule Test Drive"
+    type: "button"
+    category: "action"
+    view: "view:inventory"
+    description: "User wants to schedule a test drive"
+    requires: ["itemId"]  # Must have vehicle context
+    
+  f:askAboutVehicle:
+    label: "Ask Agent About Vehicle"
+    type: "button"
+    category: "action"
+    view: "view:inventory"
+    description: "User wants information about a vehicle"
+    requires: ["itemId"]
+
+  # Service Form Fields
+  f:name:
+    label: "Customer Name"
+    type: "input:text"
+    category: "form"
+    view: "view:service"
+    description: "Customer's full name"
+    required: true
+    
+  f:phone:
+    label: "Phone Number"
+    type: "input:tel"
+    category: "form"
+    view: "view:service"
+    description: "Customer's phone number"
+    required: true
+
+# Action Definitions
+# Maps data-assist-action values to semantic meaning
+actions:
+  action:testDrive:
+    label: "Schedule Test Drive"
+    category: "vehicle_interaction"
+    view: "view:inventory"
+    description: "User clicked to schedule a test drive"
+    agentIntent: "schedule_test_drive"
+    requiredMetadata: ["vehicle_name", "vehicle_price"]
+    
+  action:askAbout:
+    label: "Ask About Vehicle"
+    category: "vehicle_interaction"
+    view: "view:inventory"
+    description: "User clicked to ask agent about a vehicle"
+    agentIntent: "vehicle_inquiry"
+    requiredMetadata: ["vehicle_name"]
+
+# Item Definitions
+# Maps data-assist-item values to semantic meaning
+items:
+  item:vehicle:camry-hybrid-2024:
+    type: "vehicle"
+    category: "inventory"
+    metadata:
+      name: "2024 Toyota Camry Hybrid"
+      make: "Toyota"
+      model: "Camry Hybrid"
+      year: "2024"
+      price: "$32,450"
+      features: ["8-Speed CVT", "52 MPG", "Safety Sense 2.0"]
+    
+  item:vehicle:tesla-model3-2024:
+    type: "vehicle"
+    category: "inventory"
+    metadata:
+      name: "2024 Tesla Model 3"
+      make: "Tesla"
+      model: "Model 3"
+      year: "2024"
+      price: "$47,990"
+      features: ["350 Mile Range", "Autopilot", "Supercharger Network"]
+    
+  item:vehicle:rav4-hybrid-2024:
+    type: "vehicle"
+    category: "inventory"
+    metadata:
+      name: "2024 Toyota RAV4 Hybrid"
+      make: "Toyota"
+      model: "RAV4 Hybrid"
+      year: "2024"
+      price: "$39,200"
+      features: ["AWD", "40 MPG", "Adventure-Ready"]
+
+# Event Patterns
+# Defines what information should be captured for different event types
+eventPatterns:
+  click:
+    # When a click happens, capture:
+    required: ["fieldId", "actionId", "itemId"]  # At least one required
+    metadata:
+      - buttonText
+      - itemMetadata
+      - view
+      - selector
+    agentContext:
+      # Information to pass to agent
+      - itemMetadata.name
+      - itemMetadata.price
+      - actionId
+      
+  field.changed:
+    # When a field changes, capture:
+    required: ["fieldId", "newValue"]
+    metadata:
+      - fieldLabel
+      - fieldType
+      - oldValue
+      - newValue
+      - view
+    agentContext:
+      # Information to pass to agent
+      - fieldId
+      - fieldLabel
+      - newValue
+
+# Agent Intent Mappings
+# Maps actions/fields to agent intents
+agentIntents:
+  schedule_test_drive:
+    triggers: ["action:testDrive"]
+    context: ["itemMetadata.name", "itemMetadata.price"]
+    response: "I can help you schedule a test drive for {itemMetadata.name}. When would you like to come in?"
+    
+  vehicle_inquiry:
+    triggers: ["action:askAbout"]
+    context: ["itemMetadata.name", "itemMetadata.price", "itemMetadata.features"]
+    response: "I'd be happy to tell you more about {itemMetadata.name}! What would you like to know?"
+    
+  filter_applied:
+    triggers: ["f:filterMake", "f:filterPriceRange", "f:filterFuelType"]
+    context: ["fieldLabel", "newValue"]
+    response: "I see you're looking for vehicles where {fieldLabel} is {newValue}. Let me help you find the perfect match!"
+
+# View Contexts
+# Defines what each view contains and expects
+views:
+  view:inventory:
+    description: "Vehicle inventory browsing page"
+    expectedFields: ["f:filterMake", "f:filterPriceRange", "f:filterFuelType"]
+    expectedActions: ["action:testDrive", "action:askAbout"]
+    expectedItems: ["item:vehicle:*"]
+    
+  view:service:
+    description: "Service appointment scheduling page"
+    expectedFields: ["f:name", "f:phone"]
+    expectedActions: []
+    
+  view:home:
+    description: "Home page"
+    expectedFields: ["f:ctaInventory", "f:ctaService", "f:ctaFleet"]
+    expectedActions: []
+
+# Export Format for Broker
+# How this configuration should be consumed
+export:
+  format: "json"  # Convert to JSON for API consumption
+  endpoint: "/api/config/fields-actions"  # Broker endpoint to serve this
+  updateFrequency: "on-demand"  # Or "schedule", "webhook"
+  storage: "salesforce"  # Or "file", "database"
+

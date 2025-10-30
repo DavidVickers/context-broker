@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DL_ExpirationDate__c</fullName>
+    <description>Driver license expiration date.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Must be a future date for valid licenses.</inlineHelpText>
+    <label>DL Expiration Date</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Date</type>
+</CustomField>

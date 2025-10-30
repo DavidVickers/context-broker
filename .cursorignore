@@ -1,0 +1,53 @@
+# Cursor Ignore - Files that shouldn't be indexed for context
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+**/*.js.map
+**/*.css.map
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+**/.env
+
+# Logs
+*.log
+logs/
+**/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Salesforce cache
+.sfdx/
+.sf/
+**/.sfdx/
+
+# Git
+.git/
+
+# Large binary files
+*.pdf
+*.zip
+*.tar.gz
+
+# Keep these files indexed (they contain critical context):
+# !.cursorrules
+# !CONTEXT.md
+# !docs/*.md
+# !README.md
+
+

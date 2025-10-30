@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Agent Events - Dev Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 1rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .header {
+            background: #2c3e50;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .stats {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.875rem;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            color: #aaa;
+            font-size: 0.75rem;
+        }
+
+        .stat-value {
+            color: #4caf50;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        button {
+            padding: 0.5rem 1rem;
+            background: #34495e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        button:hover {
+            background: #2c3e50;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background: #4caf50;
+            color: white;
+        }
+
+        .status.disconnected {
+            background: #f44336;
+            color: white;
+        }
+
+        .events-container {
+            background: #2c2c2c;
+            border-radius: 4px;
+            padding: 1rem;
+            max-height: calc(100vh - 300px);
+            overflow-y: auto;
+        }
+
+        .event {
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+            background: #1a1a1a;
+            border-radius: 4px;
+            border-left: 3px solid #555;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+        }
+
+        .event.state-snapshot {
+            border-left-color: #2196F3;
+        }
+
+        .event.focus-changed {
+            border-left-color: #FF9800;
+        }
+
+        .event.field-changed {
+            border-left-color: #00BCD4;
+        }
+
+        .event.click {
+            border-left-color: #E91E63;
+        }
+
+        .event.route-changed {
+            border-left-color: #4CAF50;
+        }
+
+        .event.modal-opened,
+        .event.modal-closed {
+            border-left-color: #9C27B0;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            align-items: center;
+        }
+
+        .event-type {
+            font-weight: bold;
+            color: #4caf50;
+            font-size: 0.9375rem;
+        }
+
+        .event-time {
+            color: #888;
+            font-size: 0.75rem;
+        }
+
+        .event-ctx {
+            color: #2196F3;
+            font-size: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .event-data {
+            background: #0a0a0a;
+            padding: 0.5rem;
+            border-radius: 2px;
+            overflow-x: auto;
+            font-size: 0.8125rem;
+        }
+
+        .event-data pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #bbb;
+        }
+
+        .filter-input {
+            padding: 0.5rem;
+            background: #2c2c2c;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 0.875rem;
+            width: 300px;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #4caf50;
+        }
+
+        .empty {
+            text-align: center;
+            color: #666;
+            padding: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">🔍 UI Agent Events Monitor</div>
+        <div class="stats">
+            <div class="stat">
+                <span class="stat-label">Total Events</span>
+                <span class="stat-value" id="totalEvents">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Contexts</span>
+                <span class="stat-value" id="contexts">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Last Event</span>
+                <span class="stat-value" id="lastEvent">--</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        <button onclick="clearEvents()">Clear</button>
+        <button onclick="loadRecent()">Load Recent</button>
+        <input type="text" class="filter-input" id="filterInput" placeholder="Filter by type or ctx_ref..." oninput="filterEvents()">
+    </div>
+
+    <div class="status disconnected" id="status">Disconnected</div>
+
+    <div class="events-container" id="eventsContainer">
+        <div class="empty">Click "Connect" to start monitoring events</div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let allEvents = [];
+        let filteredEvents = [];
+
+        function connect() {
+            if (eventSource) {
+                disconnect();
+            }
+
+            const statusEl = document.getElementById('status');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            
+            statusEl.textContent = 'Connecting...';
+            statusEl.className = 'status disconnected';
+
+            eventSource = new EventSource('http://localhost:3001/api/dev/events/stream');
+
+            eventSource.onopen = () => {
+                statusEl.textContent = 'Connected (Live)';
+                statusEl.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            };
+
+            eventSource.onmessage = (e) => {
+                try {
+                    const event = JSON.parse(e.data);
+                    addEvent(event);
+                    updateStats();
+                } catch (error) {
+                    console.error('Error parsing event:', error);
+                }
+            };
+
+            eventSource.onerror = () => {
+                statusEl.textContent = 'Connection Error';
+                statusEl.className = 'status disconnected';
+            };
+
+            // Load recent events on connect
+            loadRecent();
+        }
+
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+
+            const statusEl = document.getElementById('status');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+
+            statusEl.textContent = 'Disconnected';
+            statusEl.className = 'status disconnected';
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+        }
+
+        async function loadRecent() {
+            try {
+                const response = await fetch('http://localhost:3001/api/dev/events/recent');
+                const data = await response.json();
+                
+                // Add events that aren't already in the list
+                const existingIds = new Set(allEvents.map(e => e.id));
+                data.events.forEach(event => {
+                    if (!existingIds.has(event.id)) {
+                        allEvents.unshift(event); // Add to beginning
+                    }
+                });
+
+                // Sort by timestamp (newest first)
+                allEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                filterEvents();
+                updateStats();
+            } catch (error) {
+                console.error('Error loading recent events:', error);
+            }
+        }
+
+        async function updateStats() {
+            try {
+                const response = await fetch('http://localhost:3001/api/dev/events/stats');
+                const stats = await response.json();
+
+                document.getElementById('totalEvents').textContent = stats.totalEvents;
+                document.getElementById('contexts').textContent = stats.contexts.length;
+                
+                if (stats.lastEventTime) {
+                    const date = new Date(stats.lastEventTime);
+                    document.getElementById('lastEvent').textContent = date.toLocaleTimeString();
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        function addEvent(event) {
+            allEvents.unshift(event); // Add to beginning
+            if (allEvents.length > 500) {
+                allEvents = allEvents.slice(0, 500); // Keep last 500
+            }
+            filterEvents();
+        }
+
+        function filterEvents() {
+            const filter = document.getElementById('filterInput').value.toLowerCase();
+            
+            if (!filter) {
+                filteredEvents = allEvents;
+            } else {
+                filteredEvents = allEvents.filter(event => {
+                    return (
+                        event.type.toLowerCase().includes(filter) ||
+                        (event.ctx_ref && event.ctx_ref.toLowerCase().includes(filter))
+                    );
+                });
+            }
+
+            renderEvents();
+        }
+
+        function clearEvents() {
+            allEvents = [];
+            filteredEvents = [];
+            renderEvents();
+            updateStats();
+        }
+
+        function renderEvents() {
+            const container = document.getElementById('eventsContainer');
+            
+            if (filteredEvents.length === 0) {
+                container.innerHTML = '<div class="empty">No events to display</div>';
+                return;
+            }
+
+            container.innerHTML = filteredEvents.map(event => {
+                const date = new Date(event.timestamp);
+                const eventClass = event.type.replace(/\./g, '-');
+                
+                return `
+                    <div class="event ${eventClass}">
+                        <div class="event-header">
+                            <span class="event-type">${event.type}</span>
+                            <span class="event-time">${date.toLocaleTimeString()}</span>
+                        </div>
+                        ${event.ctx_ref ? `<div class="event-ctx">Context: ${event.ctx_ref}</div>` : ''}
+                        <div class="event-data">
+                            <pre>${JSON.stringify(event.data, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            setTimeout(connect, 500);
+            
+            // Refresh stats every 5 seconds
+            setInterval(updateStats, 5000);
+        });
+
+        // Cleanup on unload
+        window.addEventListener('beforeunload', disconnect);
+    </script>
+</body>
+</html>
+

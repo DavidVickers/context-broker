@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExternalRef__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>Idempotent external reference key for data loads.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Used by data migration scripts as External ID.</inlineHelpText>
+    <label>External Ref</label>
+    <length>100</length>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

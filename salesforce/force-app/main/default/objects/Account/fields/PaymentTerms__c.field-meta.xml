@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PaymentTerms__c</fullName>
+    <description>Standard payment terms for invoices.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Select Net 15, Net 30, or custom terms.</inlineHelpText>
+    <label>Payment Terms</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Net30</fullName>
+                <default>false</default>
+                <label>Net30</label>
+            </value>
+            <value>
+                <fullName>Net60</fullName>
+                <default>false</default>
+                <label>Net60</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
