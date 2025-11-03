@@ -32,12 +32,17 @@ The **Context Broker** is a metadata-driven, form-agnostic system that bridges e
 
 ### Key Capabilities
 
-- **🎯 Form-Agnostic Design**: Single broker supports multiple forms, pages, and websites
-- **🤖 Agent-Enabled UI**: AI agents can observe and control web pages through standardized commands
-- **📊 Metadata-Driven Configuration**: All form definitions, mappings, and business logic stored in Salesforce
-- **🔄 Context Preservation**: Sessions maintain context across OAuth flows, async operations, and page reloads
-- **🔐 Secure Authentication**: OAuth 2.0 with refresh token management for persistent sessions
-- **⚡ Real-Time Interaction**: Agent commands and UI events flow through broker in real-time
+- **Form-Agnostic Design**: Single broker supports multiple forms, pages, and websites. This means one broker implementation can be reused across different customer websites and forms without code changes.
+
+- **Agent-Enabled UI**: AI agents can observe and control web pages through standardized commands. Agents can see what users are doing and help them interact with forms in real-time.
+
+- **Metadata-Driven Configuration**: All form definitions, mappings, and business logic stored in Salesforce. Forms are configured in Salesforce, not hardcoded, making them easy to update without deploying code.
+
+- **Context Preservation**: Sessions maintain context across OAuth flows, async operations, and page reloads. User interactions are remembered even when they authenticate or refresh the page.
+
+- **Secure Authentication**: OAuth 2.0 with refresh token management for persistent sessions. Users can authenticate securely, and their sessions remain active across multiple visits.
+
+- **Real-Time Interaction**: Agent commands and UI events flow through broker in real-time. Agents can respond immediately to user actions and help guide them through forms.
 
 ### The "Holy Trinity"
 
@@ -50,6 +55,18 @@ The system consists of three independent domains working together:
 ---
 
 ## System Architecture Overview
+
+This section shows how the three domains (Customer Website, Broker Plane, and Salesforce & Data Cloud) work together. Understanding this helps you see why the system is designed this way and what benefits it provides.
+
+**Why This Matters**: The architecture separates concerns so each domain has a specific job. This makes the system easier to maintain, scale, and extend to new websites and forms.
+
+**Benefits**: 
+- Changes to forms don't require code deployments
+- New websites can be added without modifying the broker
+- Business logic stays in Salesforce where business users can manage it
+- The system can scale each domain independently
+
+**How It Works**: The customer website sends requests to the broker, which validates and routes them to Salesforce. The broker doesn't contain business logic - it just orchestrates communication between the frontend and backend.
 
 ### High-Level Architecture Diagram
 
@@ -225,6 +242,18 @@ sequenceDiagram
 
 ## Component Interactions
 
+This section shows the detailed components within each domain and how they communicate. This helps you understand the internal structure of each system and how components depend on each other.
+
+**Why This Matters**: Understanding component interactions helps when debugging issues, adding features, or optimizing performance. You can see which components are responsible for specific functionality.
+
+**Benefits**:
+- Clear separation of responsibilities makes code easier to understand
+- Components can be modified independently without breaking others
+- You can identify bottlenecks or optimization opportunities
+- New developers can quickly understand how the system works
+
+**How It Works**: Each component has a specific role. Frontend components handle user interface, broker routes handle API requests, broker services handle business logic, and Salesforce objects store data and configuration.
+
 ### Detailed Component Architecture
 
 ```mermaid
@@ -238,11 +267,11 @@ graph TB
     end
 
     subgraph "Broker API Routes"
-        FORMS[/api/forms<br/>Form Definition and Submission]
+        FORMS[Form Definition API<br/>GET and POST /api/forms]
         SESS[/api/sessions<br/>Session Management]
-        AGENT[/api/forms/:formId/agent/query<br/>Agent Queries]
-        AGENTUI[/api/agent/ui/*<br/>UI Events and Commands]
-        OAUTH[/oauth/*<br/>OAuth Flow]
+        AGENT[Agent Query API<br/>POST /api/forms/:formId/agent/query]
+        AGENTUI[UI Agent API<br/>POST /api/agent/ui/event and command]
+        OAUTH[OAuth API<br/>GET /oauth/authorize and callback]
     end
 
     subgraph "Broker Services"
@@ -294,6 +323,18 @@ graph TB
 ---
 
 ## Data Flow Diagrams
+
+This section shows how data flows through the system. Understanding data flow helps you trace how user actions become Salesforce records and how context is preserved throughout the process.
+
+**Why This Matters**: Context IDs are critical - they link everything together. They connect form sessions to form submissions to business records. Without proper context flow, data can be lost or mislinked.
+
+**Benefits**:
+- All user interactions can be traced back to their session
+- Form submissions are linked to the correct business records
+- Agents can understand user context throughout their journey
+- Data relationships are preserved across async operations
+
+**How It Works**: When a user loads a form, a context ID is created (formId:sessionId). This context ID is included in every request, allowing the system to maintain context even when the user authenticates or submits forms asynchronously.
 
 ### Context ID Flow (Critical Pattern)
 
@@ -430,16 +471,26 @@ sequenceDiagram
 
 ### Authentication Architecture
 
+**Why This Matters**: The system uses two types of authentication - service account (for broker operations) and user authentication (for form submissions). This separation ensures the broker can always access Salesforce while users only authenticate when needed.
+
+**Benefits**:
+- Service account tokens persist, so broker operations always work
+- Users only authenticate when submitting forms that require it
+- Tokens are automatically refreshed before they expire
+- Each user session has its own tokens, keeping data isolated
+
+**How It Works**: The service account authenticates once and stores a refresh token. The broker uses this to get access tokens for queries. Users authenticate per-session when needed, and their tokens are linked to their context ID. The token manager automatically refreshes tokens before they expire.
+
 ```mermaid
 graph TB
     subgraph "Service Account Authentication"
-        SA[Service Account Session<br/>contextId="service_account"]
+        SA[Service Account Session<br/>contextId: service_account]
         SA -->|Persistent Refresh Token| RT[Refresh Token Storage<br/>Encrypted in Memory]
         RT -->|Auto-Refresh| AT1[Access Token<br/>Used for Form Queries]
     end
 
     subgraph "User Authentication"
-        US[User Session<br/>contextId="formId:sessionId"]
+        US[User Session<br/>contextId: formId:sessionId]
         US -->|Per-Session Refresh Token| RT2[Refresh Token Storage<br/>Linked to contextId]
         RT2 -->|Auto-Refresh| AT2[Access Token<br/>Used for User Queries]
     end
@@ -533,10 +584,20 @@ sequenceDiagram
 
 ### Field Mapping & Transformation Flow
 
+**Why This Matters**: Form fields often need to be transformed before being saved to Salesforce. For example, a single "name" field might need to be split into "FirstName" and "LastName". This flow shows how data moves from the form to Salesforce with transformations applied.
+
+**Benefits**:
+- Form fields can be simplified for users (single "name" field)
+- Data is automatically formatted correctly for Salesforce
+- Business rules can be applied during transformation (e.g., phone number formatting)
+- Transformations are configurable in Salesforce, not hardcoded
+
+**How It Works**: First, transformations are applied to form data (like splitting names). Then, transformed data is mapped to Salesforce fields using static and conditional mappings. Finally, the mapped data is used to create business records in Salesforce.
+
 ```mermaid
 graph LR
     subgraph "Form Data"
-        FD[Form Data<br/>{name: "John Doe",<br/>email: "john@example.com"}]
+        FD[Form Data<br/>name: John Doe<br/>email: john@example.com]
     end
 
     subgraph "Transformations"
@@ -547,11 +608,11 @@ graph LR
 
     subgraph "Field Mappings"
         FM1[Static Mappings<br/>email → Email<br/>phone → Phone]
-        FM2[Conditional Mappings<br/>if country = "US"<br/>then add US fields]
+        FM2[Conditional Mappings<br/>if country equals US<br/>then add US fields]
     end
 
     subgraph "Salesforce Record"
-        SR[Business Record<br/>{FirstName: "John",<br/>LastName: "Doe",<br/>Email: "john@example.com"}]
+        SR[Business Record<br/>FirstName: John<br/>LastName: Doe<br/>Email: john@example.com]
     end
 
     FD -->|Step 1: Transform| T1
@@ -959,6 +1020,16 @@ graph TB
 
 ### Error Response Architecture
 
+**Why This Matters**: When things go wrong, the system provides clear, actionable error messages. This helps developers debug issues quickly and helps end users understand what happened and what to do next.
+
+**Benefits**:
+- Errors are categorized by type, making them easier to handle
+- Error messages include troubleshooting steps
+- Users get friendly messages, not technical jargon
+- Errors help identify root causes (network issues, configuration problems, etc.)
+
+**How It Works**: When an error occurs, the system categorizes it by type (connection error, validation error, etc.) and creates a structured error response with a technical message, user-friendly message, resolution steps, and troubleshooting guidance. This helps both technical and non-technical users understand and resolve issues.
+
 ```mermaid
 graph TB
     subgraph "Error Types"
@@ -971,7 +1042,7 @@ graph TB
     end
 
     subgraph "Error Response Structure"
-        ER[Error Response<br/>{error: {<br/>  type: ErrorType,<br/>  message: string,<br/>  details: object,<br/>  userMessage: string,<br/>  resolution: string,<br/>  troubleshooting: string[]<br/>}}]
+        ER[Error Response<br/>type: ErrorType<br/>message: string<br/>details: object<br/>userMessage: string<br/>resolution: string<br/>troubleshooting: array]
     end
 
     subgraph "Error Sources"
