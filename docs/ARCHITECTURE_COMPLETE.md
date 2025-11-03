@@ -268,7 +268,7 @@ graph TB
 
     subgraph "Broker API Routes"
         FORMS[Form Definition API<br/>GET and POST /api/forms]
-        SESS[/api/sessions<br/>Session Management]
+        SESS[Session Management API<br/>POST /api/sessions]
         AGENT[Agent Query API<br/>POST /api/forms/:formId/agent/query]
         AGENTUI[UI Agent API<br/>POST /api/agent/ui/event and command]
         OAUTH[OAuth API<br/>GET /oauth/authorize and callback]
