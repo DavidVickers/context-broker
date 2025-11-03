@@ -257,6 +257,7 @@ This section shows the detailed components within each domain and how they commu
 ### Detailed Component Architecture
 
 ```mermaid
+%%{init: {'flowchart': {'htmlLabels': true}} }%%
 graph TB
     subgraph "Frontend Components"
         APP[App.tsx<br/>Main Component]
@@ -269,7 +270,7 @@ graph TB
     subgraph "Broker API Routes"
         FORMS[Form Definition API<br/>GET and POST /api/forms]
         SESS[Session Management API<br/>POST /api/sessions]
-        AGENT[Agent Query API<br/>POST /api/forms/:formId/agent/query]
+        AGENT[Agent Query API<br/>POST /api/forms/&#123;formId&#125;/agent/query]
         AGENTUI[UI Agent API<br/>POST /api/agent/ui/event and command]
         OAUTH[OAuth API<br/>GET /oauth/authorize and callback]
     end
@@ -293,11 +294,11 @@ graph TB
     APP --> AUI
     APP --> SM
 
-    FR -->|POST /api/forms/:formId/submit| FORMS
+    FR -->|POST /api/forms/&#123;formId&#125;/submit| FORMS
     SM -->|POST /api/sessions| SESS
     AUI -->|POST /api/agent/ui/event| AGENTUI
-    AUI <--|Poll /api/agent/ui/command| AGENTUI
-    APP -->|GET /api/forms/:formId| FORMS
+    AGENTUI -->|Poll /api/agent/ui/command| AUI
+    APP -->|GET /api/forms/&#123;formId&#125;| FORMS
 
     FORMS --> SS
     FORMS --> SFS
