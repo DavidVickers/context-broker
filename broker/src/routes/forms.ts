@@ -13,6 +13,11 @@ import {
   ErrorType,
 } from '../utils/errorResponse';
 import { applyTransformations } from '../utils/transformations';
+import {
+  getIdempotencyKeyFromRequest,
+  getIdempotentResponse,
+  storeIdempotentResponse,
+} from '../services/idempotency';
 
 const router = express.Router();
 
@@ -348,6 +353,27 @@ router.post('/:formId/submit', async (req: Request, res: Response) => {
 
       // Merge session form data with submitted data (submitted takes precedence)
       Object.assign(formData, session.formData || {});
+    }
+
+    // IDEMPOTENCY CHECK: Prevent duplicate submissions
+    // Check for existing submission with same idempotency key
+    const idempotencyKeyHeader = req.headers['idempotency-key'] as string | undefined;
+    const idempotencyKey = getIdempotencyKeyFromRequest(contextId || null, formData, idempotencyKeyHeader);
+    
+    // Check if we've already processed this submission
+    const existingResponse = getIdempotentResponse(idempotencyKey);
+    if (existingResponse) {
+      console.log(`🔄 Duplicate submission detected - returning stored response for idempotency key: ${idempotencyKey.substring(0, 16)}...`);
+      console.log(`   Original submission time: ${existingResponse.submittedAt.toISOString()}`);
+      
+      // Return original response (don't create duplicate records)
+      // Status 200 indicates successful submission (already processed)
+      return res.status(200).json({
+        ...existingResponse.response,
+        idempotent: true,
+        originalSubmittedAt: existingResponse.submittedAt.toISOString(),
+        message: 'This submission was already processed. Returning original response.',
+      });
     }
 
     // Get form definition first to understand mapping
@@ -746,7 +772,8 @@ router.post('/:formId/submit', async (req: Request, res: Response) => {
             console.warn(`   Continuing anyway - record was created with ID: ${createdBusinessRecordId}`);
           }
           
-          console.log(`✅ ${targetBusinessRecordType} record ID ${createdBusinessRecordId} stored and ready for relationship creation`);
+          console.log(`✅ ${createdBusinessRecordType} record ID ${createdBusinessRecordId} stored and ready for relationship creation`);
+        }
       } catch (error: any) {
         console.error(`❌ Failed to create ${targetBusinessObject}:`, error.message);
         console.error(`   Full error object:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
@@ -1082,6 +1109,10 @@ router.post('/:formId/submit', async (req: Request, res: Response) => {
       errorMessage: relationshipError || undefined,
       durationMs
     });
+    
+    // Store response for idempotency (prevent duplicate submissions on retry)
+    // This ensures duplicate requests return the same response without creating duplicate records
+    storeIdempotentResponse(idempotencyKey, response);
     
     res.json(response);
   } catch (error: any) {
