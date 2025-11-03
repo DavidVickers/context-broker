@@ -57,18 +57,18 @@ The system consists of three independent domains working together:
 graph TB
     subgraph "Customer Website"
         FE[React/Web App<br/>Frontend]
-        UI[UI Agent Service<br/>Observable & Controllable]
+        UI[UI Agent Service<br/>Observable and Controllable]
         LS[(localStorage<br/>Session Storage)]
     end
 
     subgraph "Broker Plane"
         API[Express API<br/>REST Endpoints]
         SM[Session Manager<br/>In-Memory/Redis]
-        TM[Token Manager<br/>OAuth & Refresh Tokens]
+        TM[Token Manager<br/>OAuth and Refresh Tokens]
         SF[Salesforce Service<br/>jsforce Integration]
     end
 
-    subgraph "Salesforce & Data Cloud"
+    subgraph "Salesforce and Data Cloud"
         SFDC[(Salesforce Org<br/>Production/Sandbox)]
         DC[(Data Cloud<br/>Unified Customer Data)]
         FD[Form_Definition__c<br/>Form Metadata]
@@ -172,7 +172,7 @@ graph TB
         BW8[✗ NO Business Rules]
     end
 
-    subgraph "Salesforce & Data Cloud Domain"
+    subgraph "Salesforce and Data Cloud Domain"
         SW[Salesforce Responsibilities]
         SW1[✓ Form Definitions<br/>Form_Definition__c]
         SW2[✓ Form Submissions<br/>Form_Submission__c]
@@ -233,15 +233,15 @@ graph TB
         APP[App.tsx<br/>Main Component]
         FR[FormRenderer<br/>Dynamic Form]
         FM[FormModal<br/>Modal Wrapper]
-        AUI[AgentUI Service<br/>Observable & Controllable]
+        AUI[AgentUI Service<br/>Observable and Controllable]
         SM[Session Manager<br/>localStorage]
     end
 
     subgraph "Broker API Routes"
-        FORMS[/api/forms<br/>Form Definition & Submission]
+        FORMS[/api/forms<br/>Form Definition and Submission]
         SESS[/api/sessions<br/>Session Management]
         AGENT[/api/forms/:formId/agent/query<br/>Agent Queries]
-        AGENTUI[/api/agent/ui/*<br/>UI Events & Commands]
+        AGENTUI[/api/agent/ui/*<br/>UI Events and Commands]
         OAUTH[/oauth/*<br/>OAuth Flow]
     end
 
@@ -320,7 +320,7 @@ sequenceDiagram
 
     Note over Website, Salesforce: User Submits Form
     Website->>Broker: POST /api/forms/:formId/submit<br/>{contextId: "formId:sessionId", formData}
-    Broker->>Broker: Parse & Validate Context ID
+    Broker->>Broker: Parse and Validate Context ID
     Broker->>Broker: Get Session by Context ID
     Broker->>Salesforce: Query Form_Definition__c<br/>(get Mapping_Rules__c)
     Salesforce-->>Broker: Mapping Rules
@@ -382,7 +382,7 @@ sequenceDiagram
     Website->>Broker: GET /oauth/authorize?contextId=service_account
     Broker->>Broker: Generate State Parameter<br/>(store in session)
     Broker->>Salesforce: Redirect to OAuth Authorization URL<br/>(client_id, redirect_uri, scope, state)
-    User->>Salesforce: Login & Authorize
+    User->>Salesforce: Login and Authorize
     Salesforce->>Broker: Redirect to /oauth/callback<br/>(code, state)
     Broker->>Broker: Validate State Parameter
     Broker->>Salesforce: Exchange Code for Token<br/>(POST /services/oauth2/token)
@@ -397,7 +397,7 @@ sequenceDiagram
     Broker->>Broker: Generate State Parameter<br/>(link to contextId)
     Broker->>Website: Return OAuth URL<br/>(cmd.auth.initiate)
     Website->>Website: Open Modal with OAuth URL
-    User->>Salesforce: Login & Authorize
+    User->>Salesforce: Login and Authorize
     Salesforce->>Broker: Redirect to /oauth/callback<br/>(code, state)
     Broker->>Broker: Validate State<br/>(retrieve contextId)
     Broker->>Salesforce: Exchange Code for Token
@@ -624,7 +624,7 @@ sequenceDiagram
     Broker->>Website: Agent Command<br/>{cmd: "auth.initiate",<br/>oauthUrl: "https://..."}
 
     Website->>Website: Open Auth Modal<br/>(OAuth URL from agent)
-    User->>Salesforce: Login & Authorize
+    User->>Salesforce: Login and Authorize
     Salesforce->>Broker: OAuth Callback<br/>(code, state)
     Broker->>Salesforce: Exchange Token
     Broker->>Broker: Link User to Context ID
@@ -1206,7 +1206,7 @@ sequenceDiagram
 
     Broker->>Salesforce: Exchange Code for Token<br/>(with client_secret)
     Salesforce-->>Broker: Access Token + Refresh Token
-    Broker->>Broker: Encrypt & Store Tokens
+    Broker->>Broker: Encrypt and Store Tokens
     Broker->>Broker: Link User to Context ID
     Broker-->>Website: Auth Complete
 ```
@@ -1324,4 +1324,5 @@ graph LR
 **Document Version**: 1.0  
 **Last Updated**: 2024  
 **Maintained By**: Context Broker Development Team
+
 
