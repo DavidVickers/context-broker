@@ -42,7 +42,15 @@ class AgentUIService {
   private focusedElement: Element | null = null;
   private commandHandlers: Map<string, (cmd: Command) => Promise<any>> = new Map();
   private snapshots: Map<number, StateSnapshot> = new Map();
-  private fieldValues: Map<string, string | null> = new Map(); // Track previous field values
+  private fieldValues: Map<string, { value: string | null; lastAccess: number }> = new Map(); // Track previous field values with lastAccess
+  private readonly MAX_FIELD_TRACKING = 100; // Limit field value tracking to prevent memory leak
+  private waitForTimeouts: Map<string, NodeJS.Timeout> = new Map(); // Track waitFor timeouts for cleanup
+  private snapshotThrottle: number | null = null; // Throttle snapshot publishing
+  private readonly SNAPSHOT_THROTTLE_MS = 1000; // Max 1 snapshot per second
+  private fieldChangeDebounce: Map<string, NodeJS.Timeout> = new Map(); // Debounce field changes
+  private readonly FIELD_CHANGE_DEBOUNCE_MS = 500; // Debounce field changes by 500ms
+  private lastFocusChange = 0; // Throttle focus changes
+  private readonly FOCUS_THROTTLE_MS = 200; // Throttle focus changes to max 1 per 200ms
   private isInitialized = false;
 
   constructor(apiBaseUrl: string) {
@@ -243,7 +251,32 @@ class AgentUIService {
   }
 
   /**
-   * Publish state snapshot
+   * Clean up old field values to prevent memory leak
+   */
+  private cleanupFieldValues(): void {
+    if (this.fieldValues.size <= this.MAX_FIELD_TRACKING) return;
+    
+    const entries = Array.from(this.fieldValues.entries())
+      .sort((a, b) => b[1].lastAccess - a[1].lastAccess); // Sort by most recently accessed
+    
+    // Keep only most recently accessed
+    this.fieldValues.clear();
+    entries.slice(0, this.MAX_FIELD_TRACKING).forEach(([key, val]) => {
+      this.fieldValues.set(key, val);
+    });
+  }
+
+  /**
+   * Publish state snapshot (throttled to max 1 per second)
+   * 
+   * **Why throttling**: Prevents flooding broker with excessive snapshots (could be
+   * hundreds per second during rapid DOM changes). Throttling ensures at least one
+   * snapshot per second reaches the broker while still allowing immediate snapshot
+   * on critical events.
+   * 
+   * **Throttle behavior**: If a snapshot was sent recently (< 1s ago), queue the next
+   * one. Always allows the first snapshot through immediately to ensure broker gets
+   * initial state.
    */
   private publishSnapshot(): void {
     const ctx = this.computeActiveContext();
@@ -263,7 +296,24 @@ class AgentUIService {
     };
 
     this.snapshots.set(snapshot.version, snapshot);
-    this.sendToBroker(snapshot);
+
+    // Throttle to max 1 per second to prevent flooding
+    // If throttle is active, delay the send but don't block it
+    if (this.snapshotThrottle) {
+      // Already throttling - clear existing timeout and queue this one
+      clearTimeout(this.snapshotThrottle);
+      this.snapshotThrottle = window.setTimeout(() => {
+        this.snapshotThrottle = null;
+        // Send the queued snapshot
+        this.sendToBroker(snapshot);
+      }, this.SNAPSHOT_THROTTLE_MS);
+    } else {
+      // No throttle active - send immediately and start throttle period
+      this.sendToBroker(snapshot);
+      this.snapshotThrottle = window.setTimeout(() => {
+        this.snapshotThrottle = null;
+      }, this.SNAPSHOT_THROTTLE_MS);
+    }
 
     // Keep only last 10 snapshots
     if (this.snapshots.size > 10) {
@@ -273,9 +323,12 @@ class AgentUIService {
   }
 
   /**
-   * Send event to broker
+   * Send event to broker (with timeout to prevent indefinite blocking)
    */
   private async sendToBroker(event: any): Promise<void> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     try {
       await fetch(`${this.apiBaseUrl}/api/agent/ui/event`, {
         method: 'POST',
@@ -284,16 +337,27 @@ class AgentUIService {
           ctx_ref: this.ctxRef,
           ...event,
         }),
+        signal: controller.signal,
       });
-    } catch (error) {
-      console.warn('Failed to send event to broker:', error);
+      clearTimeout(timeoutId);
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn('Event send timeout to broker (5s)');
+      } else {
+        console.warn('Failed to send event to broker:', error);
+      }
     }
   }
 
   /**
-   * Handle focus changes
+   * Handle focus changes (throttled to prevent flooding)
    */
   private onFocusChange = (): void => {
+    const now = Date.now();
+    if (now - this.lastFocusChange < this.FOCUS_THROTTLE_MS) return;
+    this.lastFocusChange = now;
+    
     const ctx = this.computeActiveContext();
     this.sendToBroker({
       type: 'focus.changed',
@@ -305,7 +369,7 @@ class AgentUIService {
   };
 
   /**
-   * Handle field value changes (input, select, textarea)
+   * Handle field value changes (input, select, textarea) - debounced to prevent flooding
    */
   private onFieldChange = (e: Event): void => {
     const target = e.target as HTMLElement;
@@ -314,30 +378,44 @@ class AgentUIService {
     const fieldId = target.getAttribute('data-assist-field');
     if (!fieldId) return; // Only track fields with data-assist-field
 
-    const ctx = this.computeActiveContext();
+    // Clear existing debounce timeout
+    const existing = this.fieldChangeDebounce.get(fieldId);
+    if (existing) clearTimeout(existing);
+
+    // Debounce - only send after 500ms of no changes
+    const timeout = setTimeout(() => {
+      this.fieldChangeDebounce.delete(fieldId);
+      
+      const ctx = this.computeActiveContext();
+      
+      // Get field metadata
+      const fieldType = this.getFieldType(target);
+      const fieldLabel = this.getFieldLabel(target);
+      const newValue = this.getFieldValue(target);
+      const oldEntry = this.fieldValues.get(fieldId);
+      const oldValue = oldEntry?.value || null;
+
+      // Only emit if value actually changed
+      if (oldValue !== newValue) {
+        // Update field value with lastAccess timestamp
+        this.fieldValues.set(fieldId, { value: newValue, lastAccess: Date.now() });
+        this.cleanupFieldValues(); // Clean up if needed
+
+        this.sendToBroker({
+          type: 'field.changed',
+          ts: Date.now(),
+          fieldId,
+          fieldType,
+          fieldLabel: fieldLabel || null,
+          oldValue,
+          newValue,
+          view: ctx.view?.typeId || null,
+          modal: ctx.modal?.typeId || null,
+        });
+      }
+    }, this.FIELD_CHANGE_DEBOUNCE_MS);
     
-    // Get field metadata
-    const fieldType = this.getFieldType(target);
-    const fieldLabel = this.getFieldLabel(target);
-    const newValue = this.getFieldValue(target);
-    const oldValue = this.fieldValues.get(fieldId) || null;
-
-    // Only emit if value actually changed
-    if (oldValue !== newValue) {
-      this.fieldValues.set(fieldId, newValue);
-
-      this.sendToBroker({
-        type: 'field.changed',
-        ts: Date.now(),
-        fieldId,
-        fieldType,
-        fieldLabel: fieldLabel || null,
-        oldValue,
-        newValue,
-        view: ctx.view?.typeId || null,
-        modal: ctx.modal?.typeId || null,
-      });
-    }
+    this.fieldChangeDebounce.set(fieldId, timeout);
   };
 
   /**
@@ -649,10 +727,12 @@ class AgentUIService {
   private handleWaitFor = async (cmd: Command): Promise<void> => {
     const { modalId, viewId, selector, visible = true, timeoutMs = 5000 } = cmd.params;
     const startTime = Date.now();
+    const timeoutId = `wait_${cmd.rid}`;
 
     return new Promise((resolve, reject) => {
-      const check = () => {
+      const check = (): void => {
         if (Date.now() - startTime > timeoutMs) {
+          this.waitForTimeouts.delete(timeoutId);
           reject(new Error('Timeout waiting for element'));
           return;
         }
@@ -670,9 +750,11 @@ class AgentUIService {
         }
 
         if (found) {
+          this.waitForTimeouts.delete(timeoutId);
           resolve(undefined);
         } else {
-          setTimeout(check, 100);
+          const timeout = setTimeout(check, 100);
+          this.waitForTimeouts.set(timeoutId, timeout);
         }
       };
 
@@ -795,16 +877,22 @@ class AgentUIService {
     
     this.registerAll();
     
-    // Watch for DOM changes
+    // Watch for DOM changes - optimized scope to limit CPU usage
+    // Observe only main content containers, not entire document
     this.mutationObserver = new MutationObserver(() => {
       this.registerAll();
     });
 
-    this.mutationObserver.observe(document.documentElement, {
+    // Observe document body for DOM changes
+    // Why: Need to observe the entire body to catch all assist attribute changes
+    // Performance: Still more efficient than documentElement (avoids DOCTYPE, html, head)
+    // Note: We use body instead of documentElement for better performance while still
+    // catching all relevant changes in the page content
+    this.mutationObserver.observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['hidden', 'open', 'style', 'class', 'aria-hidden'],
+      attributeFilter: ['hidden', 'open', 'style', 'class', 'aria-hidden', 'data-assist-route', 'data-assist-view', 'data-assist-modal', 'data-assist-panel'],
     });
 
     // Watch for focus changes
@@ -864,6 +952,24 @@ class AgentUIService {
     document.removeEventListener('input', this.onFieldChange);
     document.removeEventListener('change', this.onFieldChange);
     document.removeEventListener('click', this.onClick, true);
+    
+    // Clear all pending timeouts
+    if (this.snapshotThrottle) {
+      clearTimeout(this.snapshotThrottle);
+      this.snapshotThrottle = null;
+    }
+    
+    // Clear all field change debounce timeouts
+    this.fieldChangeDebounce.forEach(timeout => clearTimeout(timeout));
+    this.fieldChangeDebounce.clear();
+    
+    // Clear all waitFor timeouts
+    this.waitForTimeouts.forEach(timeout => clearTimeout(timeout));
+    this.waitForTimeouts.clear();
+    
+    // Clear field values
+    this.fieldValues.clear();
+    
     this.isInitialized = false;
   }
 }

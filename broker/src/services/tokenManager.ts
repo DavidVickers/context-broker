@@ -261,12 +261,32 @@ class TokenManager {
   getAllSessions(): UserSession[] {
     return Array.from(this.sessions.values());
   }
+
+  /**
+   * Start cleanup interval
+   */
+  startCleanup(): void {
+    if (this.cleanupInterval) return; // Already running
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupExpiredSessions();
+    }, 60 * 60 * 1000);
+  }
+
+  /**
+   * Stop cleanup interval
+   */
+  stopCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  private cleanupInterval: NodeJS.Timeout | null = null;
 }
 
 // Export singleton instance
 export const tokenManager = new TokenManager();
 
-// Clean up expired sessions every hour
-setInterval(() => {
-  tokenManager.cleanupExpiredSessions();
-}, 60 * 60 * 1000);
+// Start cleanup on module load
+tokenManager.startCleanup();

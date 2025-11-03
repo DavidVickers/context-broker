@@ -4,6 +4,7 @@ const API_BASE_URL = process.env.REACT_APP_BROKER_API_URL || 'http://localhost:3
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 30000, // 30 second timeout to prevent indefinite blocking
   headers: {
     'Content-Type': 'application/json',
   },

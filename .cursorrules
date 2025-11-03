@@ -2,6 +2,8 @@
 
 **⚠️ CRITICAL: See CONTEXT.md for essential architecture patterns. Update this file when patterns change.**
 
+**🤖 AGENT SYSTEM: Use `@agent-name` syntax to call specialized agents. See "Agent Routing System" section below for available agents.**
+
 ## Project Overview
 This is a Forms-Aware Agent project built as a monorepo with three main components:
 1. **Frontend** - React/TypeScript app deployed to GitHub Pages
@@ -81,14 +83,116 @@ context-broker/
 
 ## Code Standards
 
-### Frontend
+### Code Documentation & Comments (MANDATORY)
+
+**⚠️ CRITICAL: All code MUST be fully commented to support other developers working on the codebase.**
+
+#### Comment Requirements:
+1. **Function/Method Comments**: Every function, method, and exported function MUST have a JSDoc-style comment explaining:
+   - **Purpose**: What the function does
+   - **Parameters**: Each parameter with type and description
+   - **Returns**: What the function returns
+   - **Throws**: Any exceptions that may be thrown
+   - **Example**: Complex logic should include usage examples
+
+2. **Class Comments**: Every class MUST have a comment explaining:
+   - **Purpose**: What the class does
+   - **Responsibilities**: Key responsibilities of the class
+   - **Usage**: How to instantiate and use the class
+
+3. **Complex Logic Comments**: Any non-obvious logic MUST be commented:
+   - **Why**: Explain the reasoning, not just what
+   - **Edge Cases**: Document edge cases handled
+   - **Performance**: Note any performance considerations
+   - **Memory**: Note memory management (cleanup, limits, etc.)
+
+4. **Configuration Constants**: All constants MUST be commented:
+   - **Purpose**: What the constant represents
+   - **Values**: Why this specific value was chosen
+   - **Impact**: What changing it would affect
+
+5. **File Headers**: Each file SHOULD have a header comment:
+   - **Purpose**: What the file does
+   - **Key Exports**: Main exports and their purposes
+   - **Dependencies**: Important dependencies
+
+#### Comment Style:
+```typescript
+/**
+ * Creates a new session for form interactions.
+ *
+ * Generates a unique session ID and stores session data with a 24-hour expiration.
+ * Session includes context preservation for form data and agent conversations.
+ *
+ * @param formId - The form identifier (e.g., 'contact-form-v1')
+ * @param sessionId - Optional existing session ID (auto-generated if not provided)
+ * @returns SessionData object with sessionId, contextId, and expiration info
+ * @throws Error if formId is invalid
+ *
+ * @example
+ * const session = createSession('contact-form-v1');
+ * console.log(session.contextId); // 'contact-form-v1:550e8400-...'
+ */
+export const createSession = (formId: string, sessionId?: string): SessionData => {
+  // Implementation...
+};
+
+/**
+ * Session Management Service
+ *
+ * Manages user sessions for form interactions, including:
+ * - Session creation and expiration (24-hour TTL)
+ * - Context preservation across async operations
+ * - Session cleanup and memory management
+ *
+ * Usage:
+ * ```typescript
+ * const session = sessionService.createSession('form-id');
+ * const existing = sessionService.getSession(session.sessionId);
+ * ```
+ */
+class SessionService {
+  // Private field: in-memory store (should be Redis in production)
+  private sessions = new Map<string, SessionData>();
+
+  // Configuration: 24-hour session expiration
+  private readonly SESSION_EXPIRY_HOURS = 24;
+}
+```
+
+#### Inline Comments:
+```typescript
+// Throttle snapshot publishing to prevent flooding broker with events
+// Max 1 snapshot per second reduces network traffic from ~1000/min to ~60/min
+if (this.snapshotThrottle) return;
+
+// Clean up field values to prevent memory leak
+// Limit to last 100 fields to prevent unbounded Map growth
+if (this.fieldValues.size > this.MAX_FIELD_TRACKING) {
+  this.cleanupFieldValues();
+}
+```
+
+#### Comment Checklist:
+- [ ] Every function has JSDoc comment
+- [ ] Every class has purpose comment
+- [ ] Complex logic explained with "why" not just "what"
+- [ ] Constants explained (purpose and rationale)
+- [ ] Edge cases documented
+- [ ] Performance/memory considerations noted
+- [ ] File headers present for key files
+
+### Frontend Standards
 - Use TypeScript (no JavaScript if avoidable)
 - Follow React functional component patterns with hooks
 - Environment variables must be prefixed with `REACT_APP_`
 - API calls should go to broker layer, not directly to Salesforce
 - Build output must be static (no server-side rendering for GitHub Pages)
+- **MANDATORY**: All functions, hooks, and complex logic must be fully commented
+- **Use `@review-react` and `@optimize-hooks` before merging components**
+- **Use `@check-accessibility` to ensure WCAG 2.1 AA compliance**
 
-### Broker
+### Broker Standards
 - Use TypeScript
 - Express middleware pattern
 - Use `jsforce` for Salesforce integration
@@ -97,8 +201,12 @@ context-broker/
 - OAuth 2.0 for Salesforce authentication
 - RESTful API design
 - Error handling on all routes
+- **MANDATORY**: All routes, services, and business logic must be fully commented
+- **MANDATORY**: Rate limiting configured (see server.ts)
+- **Use `@verify-security` to check contextId validation on all routes**
+- **Use `@ensure-timeouts` to verify all async operations have timeouts**
 
-### Salesforce
+### Salesforce Standards
 - Follow Salesforce best practices
 - Use Flows for declarative logic when possible
 - Use Apex for complex business logic
@@ -107,13 +215,14 @@ context-broker/
   - `Form_Submission__c` - Submission tracking
 - REST API endpoints for broker communication
 - Proper error handling and logging
-- **CRITICAL: Always check local metadata first**
+- **MANDATORY**: Apex classes must have documentation comments
+- **CRITICAL**: Always check local metadata first
   - **BEFORE** assuming a Salesforce field/object exists, check local metadata files in `salesforce/force-app/main/default/objects/`
   - **BEFORE** writing code that references a Salesforce field, verify the field name in the local `.object-meta.xml` file
   - **IF** local metadata doesn't exist for an object/field, **ASK the user to fetch it** before proceeding
   - Local metadata path: `salesforce/force-app/main/default/objects/{ObjectName}__c/{ObjectName}__c.object-meta.xml`
   - Example: For `Form_Submission_Relationship__c`, check `salesforce/force-app/main/default/objects/Form_Submission_Relationship__c/Form_Submission_Relationship__c.object-meta.xml`
-- **CRITICAL: Field Visibility and Security Settings**
+- **CRITICAL**: Field Visibility and Security Settings
   - **AFTER** deploying new custom fields to Salesforce, **ALWAYS ask the user to verify field-level security (FLS)**
   - Deploying object metadata adds fields BUT does NOT configure visibility/security settings
   - The integration user (service account) must have **Read** and **Edit** access to all fields used in code
@@ -122,6 +231,47 @@ context-broker/
     - Ensure the integration user's profile has **Read** and **Edit** permissions
     - Or use Setup → Profiles → {Profile} → Field-Level Security → {Object} → {Field} → Edit permissions
   - **IF** fields exist in metadata but are not accessible via API, check FLS settings first
+
+### Salesforce Apex Standards (CRITICAL)
+- **⚠️ #1 FAILURE CAUSE**: Nested loops creating O(n²) or O(n³) complexity
+- **ALWAYS** use Map<Id, List<SObject>> pattern to replace nested loops
+- **Performance Math**: 500 accounts × 2,000 contacts = 1,000,000 iterations = CPU TIMEOUT!
+- **Map Pattern**: 500 + 2,000 = 2,500 operations = 400x faster, no timeout
+- **Always bulkify** - code must handle 200+ records safely
+- **SOQL and DML OUTSIDE loops** - never query or update inside iterations
+- **Test with bulk data** - minimum 200 records in test classes
+- **BEFORE deploying Apex**: Use `@review-apex` and `@check-governor-limits` agents
+- **Example nested loop fix**:
+  ```java
+  // ❌ BAD - O(n²) nested loop (WILL timeout)
+  for (Account acc : accounts) {
+    for (Contact con : contacts) {
+      if (con.AccountId == acc.Id) { /* ... */ }
+    }
+  }
+
+  // ✅ GOOD - Map-based O(n) pattern
+  Map<Id, List<Contact>> contactsByAccount = new Map<Id, List<Contact>>();
+  for (Contact con : contacts) {
+    if (!contactsByAccount.containsKey(con.AccountId)) {
+      contactsByAccount.put(con.AccountId, new List<Contact>());
+    }
+    contactsByAccount.get(con.AccountId).add(con);
+  }
+  for (Account acc : accounts) {
+    List<Contact> relatedContacts = contactsByAccount.get(acc.Id);
+    // Process with O(1) lookup!
+  }
+  ```
+
+### React/TypeScript Standards
+- Use functional components with hooks
+- Proper hook dependencies (no ESLint warnings)
+- Memoization where needed (useMemo, useCallback, React.memo)
+- Accessibility: WCAG 2.1 AA compliance
+- **Use `@review-react` before merging components**
+- **Use `@optimize-hooks` to fix re-render issues**
+- **Use `@check-accessibility` to ensure a11y compliance**
 
 ## Environment Variables
 
@@ -143,6 +293,9 @@ context-broker/
 1. Test locally first
 2. Ensure environment variables are set (use .env.example as template)
 3. Check that only relevant directory has changes
+4. **For Apex**: Run `@review-apex` and `@check-governor-limits` agents
+5. **For React**: Run `@review-react` and `@check-accessibility` agents
+6. **For API routes**: Run `@verify-security` agent
 
 ### Deployment Commands
 - Frontend: `./scripts/deploy-github.sh`
@@ -261,6 +414,7 @@ POST /api/forms/:formId/submit
 6. **ALWAYS** use environment variables for secrets (never hardcode)
 7. **NEVER** expose Salesforce credentials or raw errors to client
 8. **ALWAYS** parse contextId server-side (broker), not client-side
+9. **USE `@verify-security` agent to audit all API routes**
 
 ## Important Reminders
 
@@ -275,11 +429,435 @@ POST /api/forms/:formId/submit
    - Check `salesforce/force-app/main/default/objects/{ObjectName}__c/{ObjectName}__c.object-meta.xml` first
    - If metadata file doesn't exist, ask user to fetch it from Salesforce before proceeding
    - Never assume a field exists based on code alone - verify in metadata first
-9. **FIELD-LEVEL SECURITY (FLS)**: After deploying new fields, ALWAYS remind user to configure field visibility
+9. **CODE COMMENTS (MANDATORY)**: All code MUST be fully commented - see Code Standards section above
+10. **MEMORY MANAGEMENT**: Always cleanup intervals, timeouts, event listeners, and Map/Set growth
+11. **REQUEST TIMEOUTS**: All API calls (fetch, axios) MUST have timeouts configured
+12. **RATE LIMITING**: Broker API routes are rate-limited (500 req/15min standard, 5000 events/15min for UI events)
+13. **EVENT THROTTLING**: UI events are throttled/debounced (snapshots: 1s, fields: 500ms, focus: 200ms)
+14. **FIELD-LEVEL SECURITY (FLS)**: After deploying new fields, ALWAYS remind user to configure field visibility
    - Deploying object metadata adds fields but does NOT configure FLS automatically
    - Integration user must have Read/Edit access to all fields used in broker code
    - Easier to configure manually: Setup → Object Manager → Field → Field-Level Security → Edit profile permissions
    - If fields exist but API calls fail with "field not accessible", check FLS settings first
+15. **NESTED LOOPS (APEX CRITICAL)**: NEVER use nested loops in Apex - use Map-based patterns
+   - Use `@check-governor-limits` agent to find nested loops before deployment
+   - Replace O(n²) nested loops with O(n) Map lookups
+
+## Agent Routing System
+
+### Agent Categories
+
+The project uses specialized agents organized by purpose. Call agents using `@agent-name` syntax.
+
+---
+
+### 🔧 Task-Based Agents (Action-Focused)
+
+These agents **perform specific tasks** on your code.
+
+**`@comment-code`** - Code Commenting Agent
+- **Purpose**: Add comprehensive JSDoc comments and inline documentation
+- **Rules**: Follows "Code Documentation & Comments (MANDATORY)" section above
+- **Usage**: `@comment-code Please add JSDoc comments to all functions in broker/src/services/session.ts`
+- **Behavior**:
+  - Analyzes code structure
+  - Identifies undocumented functions/classes
+  - Adds JSDoc comments with purpose, params, returns, throws, examples
+  - Documents edge cases and performance considerations
+  - Adds inline comments explaining "why" not just "what"
+
+**`@audit-memory`** - Memory Leak Audit Agent
+- **Purpose**: Find and fix memory leaks and unbounded growth
+- **Usage**: `@audit-memory Review all files for memory leaks`
+- **Behavior**:
+  - Scans for setInterval/setTimeout without cleanup functions
+  - Checks for unbounded Map/Set growth
+  - Identifies missing event listener cleanup
+  - Finds MutationObserver/Observer leaks
+  - Verifies cleanup in destroy/unmount methods
+  - Reviews memory management patterns
+
+**`@optimize-performance`** - Performance Optimization Agent
+- **Purpose**: Optimize code for performance and reduce network traffic
+- **Usage**: `@optimize-performance Optimize frontend/src/services/agentUI.ts to reduce CPU usage`
+- **Behavior**:
+  - Identifies excessive event firing
+  - Optimizes MutationObserver scope
+  - Adds throttling/debouncing where needed
+  - Reviews network call frequency
+  - Optimizes loops and iterations
+
+**`@verify-security`** - Security Audit Agent
+- **Purpose**: Verify security practices and validate inputs
+- **Usage**: `@verify-security Check all API routes for proper input validation`
+- **Behavior**:
+  - Verifies contextId validation on all routes
+  - Checks for SQL injection risks
+  - Validates OAuth state parameters
+  - Reviews token storage practices
+  - Checks CORS configuration
+
+**`@ensure-timeouts`** - Timeout Verification Agent
+- **Purpose**: Ensure all async operations have timeouts
+- **Usage**: `@ensure-timeouts Verify all API calls have proper timeouts`
+- **Behavior**:
+  - Checks fetch calls for AbortController with timeout
+  - Verifies axios timeout configuration
+  - Reviews Promise chains for timeout handling
+  - Checks Express request timeouts
+  - Validates Salesforce API timeouts
+
+---
+
+### 🔍 Code Review Agents (Analysis-Focused)
+
+These agents **analyze and review** your code, providing detailed feedback.
+
+#### General Purpose (Any Language)
+
+**`@review-code`** - Comprehensive Code Reviewer
+- **Purpose**: Review code for quality, best practices, performance, security
+- **Focus**: Code quality, maintainability, design patterns, testing coverage, complexity
+- **Usage**: `@review-code Review broker/src/services/sessionService.ts for best practices`
+- **Output**: Issues categorized as Critical/Suggestions/Nitpicks/Praise
+
+**`@fix-bugs`** - Bug Diagnosis and Fixing Agent
+- **Purpose**: Identify root causes of bugs and implement fixes
+- **Focus**: Error analysis, stack traces, debugging, verification
+- **Usage**: `@fix-bugs Investigate "Cannot read property of undefined" in FormRenderer.tsx line 45`
+- **Behavior**:
+  - Analyzes error messages and stack traces
+  - Identifies root cause (not just symptoms)
+  - Proposes fix with explanation
+  - Implements fix
+  - Verifies solution
+
+**`@write-docs`** - Documentation Writer Agent
+- **Purpose**: Add comprehensive documentation (JSDoc, inline comments, README)
+- **Focus**: Function docs, file headers, edge cases, examples, API documentation
+- **Usage**: `@write-docs Add complete documentation to frontend/src/hooks/useAgentUI.ts`
+- **Behavior**:
+  - Adds JSDoc/docstrings to all public functions
+  - Creates inline comments for complex logic
+  - Writes file-level documentation
+  - Documents why, not just what
+
+**`@format-code`** - Code Formatter Agent
+- **Purpose**: Apply consistent formatting standards
+- **Focus**: Prettier, ESLint, indentation, import organization
+- **Usage**: `@format-code Format all files in broker/src/ with Prettier`
+- **Behavior**:
+  - Checks for project config files (.prettierrc, .eslintrc)
+  - Applies consistent formatting
+  - Organizes imports
+  - Fixes spacing and indentation
+
+**`@refactor`** - Code Refactoring Agent
+- **Purpose**: Improve code structure without changing functionality
+- **Focus**: Extract functions, reduce complexity, apply SOLID principles, remove duplication
+- **Usage**: `@refactor Simplify the nested loops in FormSubmissionHandler.cls`
+- **Behavior**:
+  - Identifies code smells
+  - Extracts reusable code
+  - Reduces complexity
+  - Improves naming
+  - Applies design patterns
+
+**`@write-tests`** - Test Writer Agent
+- **Purpose**: Create comprehensive automated tests
+- **Focus**: Unit tests, integration tests, edge cases, 80%+ coverage
+- **Usage**: `@write-tests Create Jest tests for frontend/src/services/sessionService.ts`
+- **Test Types**:
+  - Frontend: Jest + React Testing Library
+  - Backend: Jest for Node.js services
+  - Salesforce: Apex test classes with 200+ records
+
+---
+
+#### Salesforce-Specific Agents
+
+**`@review-apex`** - Apex Code Reviewer ⚠️ CRITICAL FOR SALESFORCE
+- **Purpose**: Review Apex for bulkification, governor limits, best practices
+- **Focus**:
+  - **Nested loops** (O(n²), O(n³) complexity - #1 CPU timeout cause)
+  - SOQL in loops
+  - DML in loops
+  - Missing bulkification
+  - Security (CRUD/FLS)
+  - Test coverage (75%+ required)
+- **Usage**: `@review-apex Review salesforce/force-app/main/default/classes/FormSubmissionHandler.cls`
+- **Key Pattern**: Use Map<Id, List<SObject>> to replace nested loops
+- **Output**: Critical issues, recommendations, test coverage, performance concerns
+
+**`@review-lwc`** - Lightning Web Component Reviewer
+- **Purpose**: Review LWC for best practices, wire adapters, reactivity
+- **Focus**: Wire adapters, @api/@track, events, LDS, component communication, error handling
+- **Usage**: `@review-lwc Review salesforce/force-app/main/default/lwc/formRenderer/`
+- **Checks**:
+  - Proper use of decorators (@api, @wire, @track)
+  - Wire adapter error handling
+  - Event naming and bubbling
+  - LDS usage
+  - Performance optimizations
+
+**`@optimize-soql`** - SOQL Query Optimizer
+- **Purpose**: Optimize SOQL queries for performance
+- **Focus**: Selective queries, indexed fields, relationship queries, limits
+- **Usage**: `@optimize-soql Optimize queries in FormSubmissionSelector.cls`
+- **Optimizations**:
+  - Use indexed fields in WHERE
+  - Relationship queries instead of multiple queries
+  - Aggregate queries to reduce rows
+  - Add LIMIT clauses
+
+**`@check-governor-limits`** - Governor Limits Checker ⚠️ CRITICAL
+- **Purpose**: Identify code that may hit Salesforce governor limits
+- **Focus**:
+  - **Nested loops** (PRIMARY FOCUS - causes CPU timeouts)
+  - SOQL/DML in loops
+  - Heap size, CPU time
+  - Map-based patterns to fix
+- **Usage**: `@check-governor-limits Analyze FormSubmissionHandler.cls for limit risks`
+- **Output**:
+  - Governor limit risks found with severity
+  - Recommended solutions with code examples
+  - Estimated limit usage (SOQL, DML, CPU, Heap)
+
+---
+
+#### React/TypeScript Agents
+
+**`@review-react`** - React Component Reviewer
+- **Purpose**: Review React components for best practices and performance
+- **Focus**: Component structure, props, TypeScript, hooks, performance, Vite optimization
+- **Usage**: `@review-react Review frontend/src/components/FormRenderer.tsx`
+- **Checks**:
+  - Functional components with hooks
+  - Props properly typed
+  - Performance optimizations (memo, useMemo, useCallback)
+  - Code splitting and lazy loading
+  - Vite-specific optimizations
+
+**`@optimize-hooks`** - React Hooks Optimizer
+- **Purpose**: Optimize React hooks usage (useState, useEffect, useMemo, useCallback)
+- **Focus**: Dependencies, cleanup, memoization, custom hooks, performance
+- **Usage**: `@optimize-hooks Fix re-render issues in frontend/src/hooks/useAgentUI.ts`
+- **Optimizations**:
+  - Correct useEffect dependencies
+  - Add cleanup functions
+  - Optimize useMemo/useCallback usage
+  - Fix stale closures
+  - Extract custom hooks
+
+**`@check-accessibility`** - Accessibility Checker (WCAG 2.1 AA)
+- **Purpose**: Ensure React apps are accessible
+- **Focus**: Semantic HTML, keyboard nav, ARIA, color contrast, screen readers
+- **Usage**: `@check-accessibility Review frontend/src/components/ for a11y issues`
+- **Checks**:
+  - Keyboard navigation
+  - ARIA labels and roles
+  - Color contrast (4.5:1 minimum)
+  - Focus management
+  - Screen reader support
+
+---
+
+#### Web Standards Agents
+
+**`@review-html`** - HTML Reviewer
+- **Purpose**: Ensure semantic HTML, accessibility, SEO
+- **Focus**: Semantic elements, heading hierarchy, forms, images, meta tags
+- **Usage**: `@review-html Review frontend/public/index.html for semantic issues`
+- **Checks**:
+  - Semantic HTML5 elements
+  - Proper heading hierarchy (single h1)
+  - Form labels and accessibility
+  - Image alt text
+  - SEO meta tags
+
+**`@review-css`** - CSS Reviewer
+- **Purpose**: Review CSS for modern patterns, performance, responsiveness
+- **Focus**: Flexbox/Grid, mobile-first, CSS variables, performance, a11y
+- **Usage**: `@review-css Review frontend/src/styles/ for modern CSS patterns`
+- **Checks**:
+  - Modern layout (Flexbox/Grid)
+  - Mobile-first responsive design
+  - CSS custom properties
+  - Performance optimizations
+  - Accessibility (focus states, contrast)
+
+---
+
+### 🎯 Agent Usage Patterns
+
+#### When to Use Which Agent
+
+**Bug Fixing Workflow:**
+```
+1. @fix-bugs Investigate error in [file]
+2. @write-tests Create tests to prevent regression
+3. @comment-code Document the fix
+```
+
+**Salesforce Code Review Workflow (CRITICAL):**
+```
+1. @review-apex Check FormSubmissionHandler.cls
+2. @check-governor-limits Verify no nested loops or limit issues
+3. @optimize-soql Optimize any queries found
+4. @write-tests Create Apex test class with 200+ records
+```
+
+**React Component Workflow:**
+```
+1. @review-react Check component structure
+2. @optimize-hooks Fix performance issues
+3. @check-accessibility Ensure WCAG compliance
+4. @write-tests Create React Testing Library tests
+```
+
+**Full Code Quality Workflow:**
+```
+1. @review-code General code review
+2. @refactor Improve structure if needed
+3. @format-code Apply consistent formatting
+4. @write-docs Add documentation
+5. @write-tests Create comprehensive tests
+```
+
+**Pre-Deployment Checklist:**
+```
+Frontend:
+1. @review-react [component files]
+2. @check-accessibility [all components]
+3. @format-code frontend/src/
+
+Backend:
+1. @review-code broker/src/routes/
+2. @verify-security [all API routes]
+3. @ensure-timeouts [all API calls]
+
+Salesforce:
+1. @review-apex [all Apex classes]
+2. @check-governor-limits [all classes]
+3. @write-tests [create test classes]
+```
+
+#### Agent Chaining Examples
+
+**Salesforce Development:**
+```
+@review-apex salesforce/force-app/main/default/classes/AgentQueryHandler.cls
+Then:
+@check-governor-limits (if nested loops found, provides Map-based fix)
+Then:
+@write-tests Create test class with bulk scenarios (200+ records)
+```
+
+**Frontend Development:**
+```
+@review-react frontend/src/components/AgentChat.tsx
+Then:
+@optimize-hooks (if useEffect or useMemo issues)
+Then:
+@check-accessibility (ensure keyboard nav, ARIA, focus states)
+```
+
+**Full Stack Feature:**
+```
+Backend:
+@review-code broker/src/routes/agent.ts
+@verify-security (check contextId validation)
+
+Frontend:
+@review-react frontend/src/components/FormRenderer.tsx
+@check-accessibility
+
+Salesforce:
+@review-apex salesforce/.../FormSubmissionHandler.cls
+@check-governor-limits (CRITICAL - check for nested loops)
+```
+
+---
+
+### 🚨 Critical Agent Calls for This Project
+
+**BEFORE deploying Apex code (NON-NEGOTIABLE):**
+```
+@review-apex [file]
+@check-governor-limits [file]
+```
+These agents check for the #1 Salesforce failure: **nested loops causing CPU timeouts**
+
+**BEFORE merging React components:**
+```
+@review-react [file]
+@check-accessibility [file]
+```
+
+**BEFORE deploying API routes:**
+```
+@verify-security [file]  (check contextId validation)
+@ensure-timeouts [file]  (check AbortController)
+```
+
+**AFTER finding a bug:**
+```
+@fix-bugs [description]
+@write-tests [file] (prevent regression)
+```
+
+---
+
+### 📋 Agent Quick Reference
+
+| Task | Agent | Example |
+|------|-------|---------|
+| **Fix a bug** | `@fix-bugs` | `@fix-bugs Null pointer in session.ts line 42` |
+| **Review Apex** | `@review-apex` | `@review-apex FormSubmissionHandler.cls` |
+| **Check governor limits** | `@check-governor-limits` | `@check-governor-limits FormHandler.cls` |
+| **Optimize React hooks** | `@optimize-hooks` | `@optimize-hooks useAgentUI.ts` |
+| **Check accessibility** | `@check-accessibility` | `@check-accessibility FormRenderer.tsx` |
+| **Add comments** | `@comment-code` | `@comment-code sessionService.ts` |
+| **Security audit** | `@verify-security` | `@verify-security agent.ts routes` |
+| **Write tests** | `@write-tests` | `@write-tests sessionService.ts` |
+| **Refactor code** | `@refactor` | `@refactor Simplify nested logic in handler` |
+| **Format code** | `@format-code` | `@format-code src/**/*.ts` |
+| **Review code** | `@review-code` | `@review-code broker/src/services/` |
+| **Write docs** | `@write-docs` | `@write-docs Add README for API routes` |
+| **Review LWC** | `@review-lwc` | `@review-lwc formRenderer/` |
+| **Optimize SOQL** | `@optimize-soql` | `@optimize-soql FormSelector.cls` |
+| **Review HTML** | `@review-html` | `@review-html public/index.html` |
+| **Review CSS** | `@review-css` | `@review-css src/styles/` |
+
+---
+
+### Agent Context Rules
+
+1. **Task Agents** (@comment-code, @audit-memory, @optimize-performance, @verify-security, @ensure-timeouts):
+   - Focus on DOING a specific task
+   - Make changes to fix issues
+   - Report what was changed
+   - Apply best practices automatically
+
+2. **Review Agents** (@review-apex, @review-react, @review-code, etc.):
+   - Focus on ANALYZING code
+   - Report issues found with severity (Critical/Suggestions/Nitpicks)
+   - Suggest fixes with code examples
+   - Don't always apply fixes automatically (ask first for major changes)
+   - Provide educational feedback
+
+3. **Agent Chaining**:
+   - Use review agents FIRST to identify issues
+   - Use task agents SECOND to fix issues
+   - Example: `@review-apex` (find issues) → `@refactor` (fix structure) → `@comment-code` (document)
+
+4. **Agent Specialization**:
+   - Each agent is an expert in its domain
+   - Agents follow the rules and patterns in this file
+   - Agents reference relevant code standards sections
+   - Agents provide examples from this file when applicable
+
+---
 
 ## Troubleshooting
 
@@ -306,6 +884,16 @@ POST /api/forms/:formId/submit
     - Setup → Object Manager → {ObjectName} → Fields & Relationships → {FieldName} → Field-Level Security
     - Ensure integration user's profile has **Read** and **Edit** permissions
     - Or: Setup → Profiles → {Profile} → Field-Level Security → {Object} → {Field} → Edit permissions
+- **CPU Time Limit Exceeded**: If you see this error
+  - Use `@check-governor-limits` agent to find nested loops
+  - Replace nested loops with Map<Id, List<SObject>> pattern
+  - See "Salesforce Apex Standards" section for examples
+
+### Performance Issues
+- **Frontend re-renders**: Use `@optimize-hooks` agent
+- **Apex CPU timeout**: Use `@check-governor-limits` agent (nested loops!)
+- **Slow SOQL**: Use `@optimize-soql` agent
+- **Memory leaks**: Use `@audit-memory` agent
 
 ## File Naming Conventions
 - Components: PascalCase (e.g., `FormRenderer.tsx`)
@@ -319,4 +907,3 @@ POST /api/forms/:formId/submit
 - Never force push to main
 - Use descriptive commit messages
 - Tag releases when stable
-

@@ -169,6 +169,24 @@ This project uses a **layered context system** to help Cursor AI maintain archit
 
 See [Cursor Context Guide](./docs/CURSOR_CONTEXT_GUIDE.md) for details.
 
+## 🤖 Agent System
+
+This project includes a **specialized agent routing system** for calling dedicated agents for specific tasks.
+
+**Available Agents**:
+- `@comment-code` - Code commenting and documentation
+- `@audit-memory` - Memory leak detection and fixes
+- `@optimize-performance` - Performance optimization
+- `@verify-security` - Security audit
+- `@ensure-timeouts` - Timeout verification
+
+**Usage Example**:
+```
+@comment-code Please add JSDoc comments to all functions in broker/src/services/session.ts
+```
+
+See [Agent System Documentation](./docs/AGENT_SYSTEM.md) for complete guide.
+
 ## 📚 Documentation
 
 - [Architecture Recommendations](./ARCHITECTURE_RECOMMENDATIONS.md) - Detailed architecture, tech stack, and rationale

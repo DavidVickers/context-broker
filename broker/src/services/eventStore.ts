@@ -36,11 +36,20 @@ class EventStoreService {
     }
 
     // Notify subscribers
-    this.subscribers.forEach((callback) => {
+    console.log(`🔔 Notifying ${this.subscribers.size} subscribers of event: ${storedEvent.type}`);
+    if (this.subscribers.size === 0) {
+      console.warn(`⚠️ No subscribers to notify! Event will be stored but not streamed.`);
+    }
+    
+    // Convert Set to Array to get index for logging
+    const subscribersArray = Array.from(this.subscribers);
+    subscribersArray.forEach((callback, index) => {
       try {
+        console.log(`📢 Calling subscriber ${index + 1}/${subscribersArray.length}`);
         callback(storedEvent);
+        console.log(`✅ Subscriber ${index + 1} notified successfully`);
       } catch (error) {
-        console.error('Error in event subscriber:', error);
+        console.error(`❌ Error in subscriber ${index + 1}:`, error);
       }
     });
   }
@@ -54,12 +63,23 @@ class EventStoreService {
 
   /**
    * Subscribe to new events
+   * 
+   * Returns unsubscribe function that removes the callback from subscribers
    */
   subscribe(callback: EventCallback): () => void {
+    console.log(`➕ Adding subscriber, total subscribers: ${this.subscribers.size + 1}`);
     this.subscribers.add(callback);
     return () => {
+      console.log(`➖ Removing subscriber, remaining: ${this.subscribers.size - 1}`);
       this.subscribers.delete(callback);
     };
+  }
+  
+  /**
+   * Get subscriber count (for debugging)
+   */
+  getSubscriberCount(): number {
+    return this.subscribers.size;
   }
 
   /**

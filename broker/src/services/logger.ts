@@ -78,11 +78,33 @@ const cleanupOldLogs = () => {
   }
 };
 
+// Cleanup interval - stored to allow cleanup
+let loggerCleanupInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Start logger cleanup interval
+ */
+export const startLoggerCleanup = (): void => {
+  if (loggerCleanupInterval) return; // Already running
+  
+  loggerCleanupInterval = setInterval(cleanupOldLogs, 60 * 60 * 1000);
+};
+
+/**
+ * Stop logger cleanup interval
+ */
+export const stopLoggerCleanup = (): void => {
+  if (loggerCleanupInterval) {
+    clearInterval(loggerCleanupInterval);
+    loggerCleanupInterval = null;
+  }
+};
+
 // Run cleanup on startup
 cleanupOldLogs();
 
-// Run cleanup every hour
-setInterval(cleanupOldLogs, 60 * 60 * 1000);
+// Start cleanup interval
+startLoggerCleanup();
 
 export interface LogApiRequest {
   method: string;

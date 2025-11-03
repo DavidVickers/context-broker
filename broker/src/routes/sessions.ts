@@ -7,6 +7,12 @@ import {
   updateSessionAgentContext,
   validateContextId,
 } from '../services/session';
+import {
+  createErrorResponse,
+  invalidContextIdError,
+  sessionNotFoundError,
+  ErrorType,
+} from '../utils/errorResponse';
 
 const router = express.Router();
 
@@ -16,9 +22,19 @@ router.post('/', async (req: Request, res: Response) => {
     const { formId, sessionId } = req.body;
 
     if (!formId) {
-      return res.status(400).json({
-        error: 'Form ID is required',
-      });
+      const errorResponse = createErrorResponse(
+        ErrorType.VALIDATION_ERROR,
+        'Form ID is required',
+        {},
+        'Form ID must be provided in request body',
+        'Include formId in the request body',
+        [
+          'Verify formId is included in POST body',
+          'Check formId is a valid string',
+          'Ensure formId matches a Form_Definition__c.Form_Id__c',
+        ]
+      );
+      return res.status(400).json(errorResponse);
     }
 
     // If sessionId provided, validate it exists, otherwise create new
@@ -41,11 +57,23 @@ router.post('/', async (req: Request, res: Response) => {
       expiresAt: session.expiresAt.toISOString(),
     });
   } catch (error: any) {
-    console.error('Error creating session:', error);
-    res.status(500).json({
-      error: 'Failed to create session',
-      message: error.message,
-    });
+    console.error('❌ Error creating session:', error);
+    const errorResponse = createErrorResponse(
+      ErrorType.INTERNAL_ERROR,
+      'Failed to create session',
+      {
+        formId: req.body?.formId,
+        sessionId: req.body?.sessionId,
+      },
+      error.message,
+      'Check broker logs for detailed error information',
+      [
+        'Verify formId is valid',
+        'Check broker logs for detailed error stack trace',
+        'Ensure session service is initialized correctly',
+      ]
+    );
+    return res.status(500).json(errorResponse);
   }
 });
 
@@ -72,11 +100,22 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
       expiresAt: session.expiresAt.toISOString(),
     });
   } catch (error: any) {
-    console.error('Error fetching session:', error);
-    res.status(500).json({
-      error: 'Failed to fetch session',
-      message: error.message,
-    });
+    console.error('❌ Error fetching session:', error);
+    const errorResponse = createErrorResponse(
+      ErrorType.INTERNAL_ERROR,
+      'Failed to fetch session',
+      {
+        sessionId: req.params.sessionId,
+      },
+      error.message,
+      'Check broker logs for detailed error information',
+      [
+        'Verify sessionId format is correct',
+        'Check broker logs for detailed error stack trace',
+        'Ensure session service is initialized correctly',
+      ]
+    );
+    return res.status(500).json(errorResponse);
   }
 });
 
@@ -100,9 +139,8 @@ router.put('/:sessionId', async (req: Request, res: Response) => {
 
     const session = getSession(sessionId);
     if (!session) {
-      return res.status(404).json({
-        error: 'Session not found or expired',
-      });
+      const errorResponse = sessionNotFoundError(sessionId);
+      return res.status(404).json(errorResponse);
     }
 
     res.json({
@@ -112,11 +150,22 @@ router.put('/:sessionId', async (req: Request, res: Response) => {
       ...updates,
     });
   } catch (error: any) {
-    console.error('Error updating session:', error);
-    res.status(500).json({
-      error: 'Failed to update session',
-      message: error.message,
-    });
+    console.error('❌ Error updating session:', error);
+    const errorResponse = createErrorResponse(
+      ErrorType.INTERNAL_ERROR,
+      'Failed to update session',
+      {
+        sessionId: req.params.sessionId,
+      },
+      error.message,
+      'Check broker logs for detailed error information',
+      [
+        'Verify sessionId format is correct',
+        'Check broker logs for detailed error stack trace',
+        'Ensure session service is initialized correctly',
+      ]
+    );
+    return res.status(500).json(errorResponse);
   }
 });
 
@@ -126,17 +175,15 @@ router.get('/context/:contextId', async (req: Request, res: Response) => {
     const { contextId } = req.params;
 
     if (!validateContextId(contextId)) {
-      return res.status(400).json({
-        error: 'Invalid Context ID format',
-      });
+      const errorResponse = invalidContextIdError(contextId, 'Invalid format - must be formId:sessionId');
+      return res.status(400).json(errorResponse);
     }
 
     const session = getSessionByContextId(contextId);
 
     if (!session) {
-      return res.status(404).json({
-        error: 'Session not found or expired',
-      });
+      const errorResponse = sessionNotFoundError('', contextId);
+      return res.status(404).json(errorResponse);
     }
 
     res.json({
@@ -150,14 +197,28 @@ router.get('/context/:contextId', async (req: Request, res: Response) => {
       expiresAt: session.expiresAt.toISOString(),
     });
   } catch (error: any) {
-    console.error('Error fetching session by context ID:', error);
-    res.status(500).json({
-      error: 'Failed to fetch session',
-      message: error.message,
-    });
+    console.error('❌ Error fetching session by context ID:', error);
+    const errorResponse = createErrorResponse(
+      ErrorType.INTERNAL_ERROR,
+      'Failed to fetch session by context ID',
+      {
+        contextId: req.params.contextId,
+      },
+      error.message,
+      'Check broker logs for detailed error information',
+      [
+        'Verify contextId format is correct (formId:sessionId)',
+        'Check broker logs for detailed error stack trace',
+        'Ensure session service is initialized correctly',
+      ]
+    );
+    return res.status(500).json(errorResponse);
   }
 });
 
 export default router;
+
+
+
 
 

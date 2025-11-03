@@ -65,12 +65,21 @@ export const getOrCreateSession = async (formId: string, apiBaseUrl: string): Pr
 
     // Verify session is still valid with server
     try {
-      const response = await fetch(`${apiBaseUrl}/api/sessions/${storedSessionId}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(`${apiBaseUrl}/api/sessions/${storedSessionId}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
         return sessionInfo;
       }
-    } catch (error) {
-      console.warn('Session validation failed, creating new session:', error);
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.warn('Session validation failed, creating new session:', error);
+      }
     }
   }
 
@@ -78,13 +87,18 @@ export const getOrCreateSession = async (formId: string, apiBaseUrl: string): Pr
   const sessionId = generateUUID();
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
     const response = await fetch(`${apiBaseUrl}/api/sessions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ formId, sessionId }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error('Failed to create session');
@@ -159,15 +173,22 @@ export const updateSessionData = async (
   apiBaseUrl: string
 ): Promise<void> => {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     await fetch(`${apiBaseUrl}/api/sessions/${sessionId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ formData }),
+      signal: controller.signal,
     });
-  } catch (error) {
-    console.warn('Failed to update session data:', error);
+    clearTimeout(timeoutId);
+  } catch (error: any) {
+    if (error.name !== 'AbortError') {
+      console.warn('Failed to update session data:', error);
+    }
     // Non-critical failure, continue
   }
 };
@@ -180,5 +201,6 @@ export default {
   clearSession,
   updateSessionData,
 };
+
 
 

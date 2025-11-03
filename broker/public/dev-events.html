@@ -254,9 +254,22 @@
             statusEl.textContent = 'Connecting...';
             statusEl.className = 'status disconnected';
 
-            eventSource = new EventSource('http://localhost:3001/api/dev/events/stream');
+            console.log('🔌 Connecting to SSE stream...');
+            const streamUrl = 'http://localhost:3001/api/dev/events/stream';
+            console.log(`📡 Connecting to: ${streamUrl}`);
+            
+            try {
+                eventSource = new EventSource(streamUrl);
+                console.log('✅ EventSource object created');
+            } catch (error) {
+                console.error('❌ Failed to create EventSource:', error);
+                statusEl.textContent = 'Failed to connect';
+                statusEl.className = 'status disconnected';
+                return;
+            }
 
             eventSource.onopen = () => {
+                console.log('✅ SSE connection opened');
                 statusEl.textContent = 'Connected (Live)';
                 statusEl.className = 'status connected';
                 connectBtn.disabled = true;
@@ -265,17 +278,37 @@
 
             eventSource.onmessage = (e) => {
                 try {
+                    // Handle connection message separately
+                    if (e.data.includes('"type":"connected"')) {
+                        const msg = JSON.parse(e.data);
+                        console.log('✅ SSE connection confirmed:', msg.message);
+                        return;
+                    }
+                    
                     const event = JSON.parse(e.data);
+                    console.log(`📨 SSE Event received: ${event.type} (${event.id})`, event);
                     addEvent(event);
                     updateStats();
                 } catch (error) {
-                    console.error('Error parsing event:', error);
+                    console.error('❌ Error parsing event:', error, 'Raw data:', e.data);
                 }
             };
 
-            eventSource.onerror = () => {
-                statusEl.textContent = 'Connection Error';
-                statusEl.className = 'status disconnected';
+            eventSource.onerror = (error) => {
+                console.error('❌ SSE connection error:', error, 'ReadyState:', eventSource.readyState);
+                // EventSource.readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    statusEl.textContent = 'Connection Closed';
+                    statusEl.className = 'status disconnected';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                } else if (eventSource.readyState === EventSource.CONNECTING) {
+                    statusEl.textContent = 'Reconnecting...';
+                    statusEl.className = 'status disconnected';
+                } else {
+                    statusEl.textContent = 'Connection Error';
+                    statusEl.className = 'status disconnected';
+                }
             };
 
             // Load recent events on connect
@@ -286,6 +319,12 @@
             if (eventSource) {
                 eventSource.close();
                 eventSource = null;
+            }
+            
+            // Clear stats update interval
+            if (statsUpdateInterval) {
+                clearInterval(statsUpdateInterval);
+                statsUpdateInterval = null;
             }
 
             const statusEl = document.getElementById('status');
@@ -305,11 +344,15 @@
                 
                 // Add events that aren't already in the list
                 const existingIds = new Set(allEvents.map(e => e.id));
+                let addedCount = 0;
                 data.events.forEach(event => {
                     if (!existingIds.has(event.id)) {
                         allEvents.unshift(event); // Add to beginning
+                        addedCount++;
                     }
                 });
+
+                console.log(`📥 Loaded ${addedCount} new events from recent (total in store: ${data.total})`);
 
                 // Sort by timestamp (newest first)
                 allEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -339,11 +382,13 @@
         }
 
         function addEvent(event) {
+            console.log(`➕ Adding event to display: ${event.type} (${event.id})`);
             allEvents.unshift(event); // Add to beginning
             if (allEvents.length > 500) {
                 allEvents = allEvents.slice(0, 500); // Keep last 500
             }
             filterEvents();
+            console.log(`📊 Total events now: ${allEvents.length}, Filtered: ${filteredEvents.length}`);
         }
 
         function filterEvents() {
@@ -373,6 +418,13 @@
         function renderEvents() {
             const container = document.getElementById('eventsContainer');
             
+            if (!container) {
+                console.error('❌ eventsContainer not found in DOM!');
+                return;
+            }
+            
+            console.log(`🎨 Rendering ${filteredEvents.length} filtered events (out of ${allEvents.length} total)`);
+            
             if (filteredEvents.length === 0) {
                 container.innerHTML = '<div class="empty">No events to display</div>';
                 return;
@@ -395,15 +447,31 @@
                     </div>
                 `;
             }).join('');
+            
+            console.log(`✅ Rendered ${filteredEvents.length} events to container`);
         }
 
+        // Throttle stats updates to prevent rate limiting
+        let statsUpdateInterval = null;
+        
         // Auto-connect on load
+        console.log('🚀 Page loaded, setting up auto-connect...');
         window.addEventListener('load', () => {
-            setTimeout(connect, 500);
+            console.log('✅ Window loaded, connecting to SSE stream...');
+            // Connect immediately - don't wait
+            connect();
             
-            // Refresh stats every 5 seconds
-            setInterval(updateStats, 5000);
+            // Refresh stats every 15 seconds
+            // Why: Stats update frequency balanced between freshness and server load
+            // With 500 req/15min limit, 15s interval = 60 req/15min (well under limit)
+            statsUpdateInterval = setInterval(updateStats, 15000); // 15 seconds
         });
+        
+        // Also try connecting if DOM is already ready
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            console.log('⚡ DOM already ready, connecting immediately...');
+            setTimeout(connect, 100);
+        }
 
         // Cleanup on unload
         window.addEventListener('beforeunload', disconnect);

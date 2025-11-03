@@ -16,15 +16,37 @@ interface UIState {
 const uiState: UIState = {};
 const TTL = 900000; // 15 minutes
 
-// Cleanup expired state
-setInterval(() => {
-  const now = Date.now();
-  for (const ctx_ref in uiState) {
-    if (now - uiState[ctx_ref].lastUpdate > TTL) {
-      delete uiState[ctx_ref];
+// Cleanup interval - stored to allow cleanup
+let uiStateCleanupInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Start UI state cleanup interval
+ */
+const startUIStateCleanup = (): void => {
+  if (uiStateCleanupInterval) return; // Already running
+  
+  uiStateCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const ctx_ref in uiState) {
+      if (now - uiState[ctx_ref].lastUpdate > TTL) {
+        delete uiState[ctx_ref];
+      }
     }
+  }, 60000); // Run every minute
+};
+
+/**
+ * Stop UI state cleanup interval
+ */
+const stopUIStateCleanup = (): void => {
+  if (uiStateCleanupInterval) {
+    clearInterval(uiStateCleanupInterval);
+    uiStateCleanupInterval = null;
   }
-}, 60000); // Run every minute
+};
+
+// Start cleanup on module load
+startUIStateCleanup();
 
 // POST /api/agent/ui/event - Receive UI events from shim
 router.post('/event', async (req: Request, res: Response) => {
@@ -49,11 +71,22 @@ router.post('/event', async (req: Request, res: Response) => {
     state.lastUpdate = Date.now();
 
     // Store event for dev visualization
+    // Log to console for debugging (can be removed in production)
+    console.log(`📨 UI Event received: ${event.type} from ${ctx_ref}`);
+    
     EventStore.addEvent({
       type: event.type,
       ctx_ref,
       data: event,
     });
+    
+    // Verify event was added to store
+    const recentEvents = EventStore.getRecentEvents(1);
+    if (recentEvents.length > 0 && recentEvents[0].type === event.type) {
+      console.log(`✅ Event stored successfully in EventStore`);
+    } else {
+      console.warn(`⚠️ Event may not have been stored correctly`);
+    }
 
     // Handle different event types
     switch (event.type) {

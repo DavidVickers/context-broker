@@ -261,3 +261,7 @@ GET    /api/auth/status?contextId=...  # Check auth status
 **Maintainer**: Update when adding new patterns or principles
 
 
+
+
+
+
